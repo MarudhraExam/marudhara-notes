@@ -1,0 +1,6 @@
+{
+  "name": "Marudhara Exam",
+  "description": "Official Android Application for Rajasthan Competitive Exams with premium native dashboard, mock tests, vacancy alerts, Daily Sujas, and study resources.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
