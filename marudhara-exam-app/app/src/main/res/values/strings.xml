@@ -1,3 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Marudhara Exam</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_omr">OMR Check</string>
+    <string name="nav_mock">Mock Tests</string>
+    <string name="nav_results">OMR Check Result</string>
+    <string name="nav_vacancy">Vacancy Updates</string>
+    <string name="nav_student">Student Corner</string>
+    <string name="nav_vacancy_result">Vacancy Result</string>
+    <string name="nav_share">Share App</string>
+    <string name="nav_rate">Rate Us</string>
+    <string name="nav_profile">Profile</string>
+    <string name="nav_logout">Logout</string>
+    <string name="exit_title">Exit App?</string>
+    <string name="exit_message">Are you sure you want to close Marudhara Exam application?</string>
+    <string name="exit_yes">Yes (Exit)</string>
+    <string name="exit_no">Cancel</string>
+    <string name="welcome_student">Dear Student</string>
+    <string name="candidate_portal">Marudhara Exam Candidate</string>
+    <string name="language_select">Change Language / भाषा बदलें</string>
+    <string name="language_english">English</string>
+    <string name="language_hindi">हिन्दी (Hindi)</string>
+    <string name="welcome_back">Welcome, %s 👋</string>
+    <string name="welcome_sub">Welcome to Marudhara Exam Competition App.</string>
+    <string name="banner_loading">Loading banners...</string>
+    <string name="banner_slogan">Marudhara Exam - Path to Success</string>
+    <string name="portals_title">Official Portals</string>
 </resources>

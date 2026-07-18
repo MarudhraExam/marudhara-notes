@@ -36,7 +36,7 @@ private val LightColorScheme =
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  darkTheme: Boolean = false, // Constrain to light mode for the premium consistent brand theme
   // Dynamic color is turned off by default to preserve premium brand coloring
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,

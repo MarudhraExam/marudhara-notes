@@ -814,7 +814,7 @@ fun LoginScreen(
 
             // Brand Disclaimer
             Text(
-                text = "आधिकारिक मरुधरा एग्जाम Companion App\n100% सुरक्षित एवं प्रमाणित प्रमाणीकरण",
+                text = "आधिकारिक मरुधरा एग्जाम Competition App\n100% सुरक्षित एवं प्रमाणित प्रमाणीकरण",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),

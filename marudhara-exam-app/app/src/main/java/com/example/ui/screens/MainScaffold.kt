@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -86,13 +88,13 @@ fun MainScaffold(
             onDismissRequest = { showExitDialog = false },
             title = {
                 Text(
-                    text = "बाहर जाएं?",
+                    text = stringResource(R.string.exit_title),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
             text = {
                 Text(
-                    text = "क्या आप वास्तव में Marudhara Exam एप्लीकेशन बंद करना चाहते हैं?",
+                    text = stringResource(R.string.exit_message),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -107,34 +109,37 @@ fun MainScaffold(
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("हाँ (Exit)", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.exit_yes), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text("निरस्त करें", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.exit_no), fontWeight = FontWeight.Medium)
                 }
             },
             shape = RoundedCornerShape(16.dp)
         )
     }
 
-    val drawerItems = remember {
+    val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
+
+    val drawerItems = remember(appLanguage) {
         listOf(
-            DrawerMenuItem("मुख्य पृष्ठ (Home)", "Home Dashboard", Icons.Default.Home, DrawerAction.NavigateHome),
-            DrawerMenuItem("OMR चेक (OMR Check)", "Verify OMR sheet", Icons.Default.FactCheck, DrawerAction.OpenWeb("OMR चेक", "https://marudharaexam.in/omr.html")),
-            DrawerMenuItem("मॉक टेस्ट (Mock Tests)", "Practice mock tests", Icons.Default.Assignment, DrawerAction.OpenWeb("मॉक टेस्ट", "https://marudharaexam.in/mock-tests/index.html")),
-            DrawerMenuItem("परीक्षा परिणाम (Result)", "Exam results", Icons.Default.Assessment, DrawerAction.OpenWeb("परीक्षा परिणाम", "https://marudharaexam.in/results.html")),
-            DrawerMenuItem("नवीनतम भर्तियां (Vacancy Updates)", "Job alerts and news", Icons.Default.Campaign, DrawerAction.OpenWeb("नवीनतम भर्तियां", "https://marudharaexam.in/vacancy.html")),
-            DrawerMenuItem("विद्यार्थी कॉर्नर (Student Corner)", "Candidate portal", Icons.Default.School, DrawerAction.OpenWeb("विद्यार्थी कॉर्नर", "https://marudharaexam.in/student-corner.html")),
-            DrawerMenuItem("भर्ती परिणाम (Vacancy Result)", "Selected candidates", Icons.Default.TaskAlt, DrawerAction.OpenWeb("भर्ती परिणाम", "https://marudharaexam.in/vacancy-result.html")),
-            DrawerMenuItem("ऐप शेयर करें (Share)", "Share Application", Icons.Default.Share, DrawerAction.ShareApp),
-            DrawerMenuItem("रेट करें (Rate Us)", "Rate on Play Store", Icons.Default.Star, DrawerAction.RateApp)
+            DrawerMenuItem(context.getString(R.string.nav_home), "Home Dashboard", Icons.Default.Home, DrawerAction.NavigateHome),
+            DrawerMenuItem(context.getString(R.string.nav_omr), "Verify OMR sheet", Icons.Default.FactCheck, DrawerAction.OpenWeb(context.getString(R.string.nav_omr), "https://marudharaexam.in/omr.html")),
+            DrawerMenuItem(context.getString(R.string.nav_mock), "Practice mock tests", Icons.Default.Assignment, DrawerAction.OpenWeb(context.getString(R.string.nav_mock), "https://marudharaexam.in/mock-tests/index.html")),
+            DrawerMenuItem(context.getString(R.string.nav_results), "OMR Check Result", Icons.Default.Assessment, DrawerAction.OpenWeb(context.getString(R.string.nav_results), "https://marudharaexam.in/results.html")),
+            DrawerMenuItem(context.getString(R.string.nav_vacancy), "Job alerts and news", Icons.Default.Campaign, DrawerAction.OpenWeb(context.getString(R.string.nav_vacancy), "https://marudharaexam.in/vacancy.html")),
+            DrawerMenuItem(context.getString(R.string.nav_student), "Candidate portal", Icons.Default.School, DrawerAction.OpenWeb(context.getString(R.string.nav_student), "https://marudharaexam.in/student-corner.html")),
+            DrawerMenuItem(context.getString(R.string.nav_vacancy_result), "Selected candidates", Icons.Default.TaskAlt, DrawerAction.OpenWeb(context.getString(R.string.nav_vacancy_result), "https://marudharaexam.in/vacancy-result.html")),
+            DrawerMenuItem(context.getString(R.string.nav_share), "Share Application", Icons.Default.Share, DrawerAction.ShareApp),
+            DrawerMenuItem(context.getString(R.string.nav_rate), "Rate on Play Store", Icons.Default.Star, DrawerAction.RateApp)
         )
     }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = true,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -251,6 +256,82 @@ fun MainScaffold(
                         )
                     }
                     Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // Language Selection Section in Drawer
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp, horizontal = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.language_select),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                sessionManager.saveLanguage("en")
+                                            }
+                                        }
+                                        .padding(4.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = appLanguage == "en",
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                sessionManager.saveLanguage("en")
+                                            }
+                                        }
+                                    )
+                                    Text(
+                                        text = "English",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (appLanguage == "en") FontWeight.Bold else FontWeight.Normal),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                sessionManager.saveLanguage("hi")
+                                            }
+                                        }
+                                        .padding(4.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = appLanguage == "hi",
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                sessionManager.saveLanguage("hi")
+                                            }
+                                        }
+                                    )
+                                    Text(
+                                        text = "हिन्दी",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (appLanguage == "hi") FontWeight.Bold else FontWeight.Normal),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         },
@@ -335,15 +416,14 @@ fun MainScaffold(
             bottomBar = {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 6.dp,
-                    shadowElevation = 8.dp,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 6.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.navigationBars)
-                            .height(46.dp),
+                            .height(38.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -363,9 +443,8 @@ fun MainScaffold(
                                 tint = if (homeSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f),
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
-                                text = "मुख्य पृष्ठ (Home)",
+                                text = stringResource(R.string.nav_home),
                                 fontSize = 9.sp,
                                 fontWeight = if (homeSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (homeSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f)
@@ -388,9 +467,8 @@ fun MainScaffold(
                                 tint = if (profileSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f),
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
-                                text = "प्रोफ़ाइल (Profile)",
+                                text = stringResource(R.string.nav_profile),
                                 fontSize = 9.sp,
                                 fontWeight = if (profileSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (profileSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f)
@@ -414,8 +492,7 @@ fun MainScaffold(
                         onSelectBottomTab = { selectedBottomTab = it }
                     )
                     4 -> ProfileScreen(
-                        studentName = studentName,
-                        mobileNumber = mobileNumber,
+                        sessionManager = sessionManager,
                         onLogout = onLogout,
                         onNavigateToWeb = onNavigateToWeb
                     )

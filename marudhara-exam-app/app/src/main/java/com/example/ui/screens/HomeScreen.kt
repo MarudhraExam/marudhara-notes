@@ -26,13 +26,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import coil.compose.AsyncImage
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
 // Action Card data model matching allowed modules
 data class ActionItem(
-    val titleHindi: String,
+    val titleResId: Int,
     val titleEnglish: String,
     val icon: ImageVector,
     val color: Color,
@@ -92,7 +94,7 @@ fun HomeScreen(
     val actions = remember {
         listOf(
             ActionItem(
-                titleHindi = "OMR चेक",
+                titleResId = R.string.nav_omr,
                 titleEnglish = "OMR Check",
                 icon = Icons.Default.FactCheck,
                 color = Color(0xFF10B981),
@@ -100,7 +102,7 @@ fun HomeScreen(
                 titleParam = "OMR चेक"
             ),
             ActionItem(
-                titleHindi = "मॉक टेस्ट",
+                titleResId = R.string.nav_mock,
                 titleEnglish = "Mock Tests",
                 icon = Icons.Default.Assignment,
                 color = Color(0xFF002B5B),
@@ -108,15 +110,15 @@ fun HomeScreen(
                 titleParam = "मॉक टेस्ट"
             ),
             ActionItem(
-                titleHindi = "परीक्षा परिणाम",
-                titleEnglish = "Result",
+                titleResId = R.string.nav_results,
+                titleEnglish = "OMR Check Result",
                 icon = Icons.Default.Assessment,
                 color = Color(0xFF3B82F6),
                 targetUrl = "https://marudharaexam.in/results.html",
-                titleParam = "परीक्षा परिणाम"
+                titleParam = "OMR Check Result"
             ),
             ActionItem(
-                titleHindi = "नवीनतम भर्तियां",
+                titleResId = R.string.nav_vacancy,
                 titleEnglish = "Vacancy Updates",
                 icon = Icons.Default.Campaign,
                 color = Color(0xFFF59E0B),
@@ -124,7 +126,7 @@ fun HomeScreen(
                 titleParam = "नवीनतम भर्तियां"
             ),
             ActionItem(
-                titleHindi = "विद्यार्थी कॉर्नर",
+                titleResId = R.string.nav_student,
                 titleEnglish = "Student Corner",
                 icon = Icons.Default.School,
                 color = Color(0xFF8B5CF6),
@@ -132,7 +134,7 @@ fun HomeScreen(
                 titleParam = "विद्यार्थी कॉर्नर"
             ),
             ActionItem(
-                titleHindi = "भर्ती परिणाम",
+                titleResId = R.string.nav_vacancy_result,
                 titleEnglish = "Vacancy Result",
                 icon = Icons.Default.TaskAlt,
                 color = Color(0xFFEC4899),
@@ -164,24 +166,28 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 1.dp)
         ) {
             // Welcome Greeting
             Text(
-                text = "नमस्ते, $studentName 👋",
+                text = stringResource(R.string.welcome_back, studentName),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontSize = 15.sp
                 ),
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "मरुधरा एग्जाम Companion App में आपका स्वागत है।",
+                text = stringResource(R.string.welcome_sub),
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp
+                    fontSize = 11.sp
                 ),
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                modifier = Modifier.padding(top = 1.dp, bottom = 6.dp)
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 0.dp, bottom = 2.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             // Dynamic Banner Slider
@@ -189,7 +195,7 @@ fun HomeScreen(
                 state = pagerState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(2.6f)
+                    .aspectRatio(3.2f)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.LightGray.copy(alpha = 0.15f))
             ) { page ->
@@ -199,14 +205,15 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.primary)
-                            .padding(20.dp),
+                            .padding(12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (isLoadingBanners) "बैनर लोड हो रहे हैं..." else "Marudhara Exam - सफलता की राह",
+                            text = if (isLoadingBanners) stringResource(R.string.banner_loading) else stringResource(R.string.banner_slogan),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                fontSize = 14.sp
                             ),
                             textAlign = TextAlign.Center
                         )
@@ -216,7 +223,7 @@ fun HomeScreen(
                     AsyncImage(
                         model = banner.imageUrl,
                         contentDescription = "Live Promo Banner",
-                        contentScale = ContentScale.Fit,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
                             .clickable {
@@ -228,7 +235,7 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             // Banner dots indicator
             if (banners.size > 1) {
@@ -246,10 +253,10 @@ fun HomeScreen(
                         }
                         Box(
                             modifier = Modifier
-                                .padding(2.dp)
+                                .padding(1.dp)
                                 .clip(CircleShape)
                                 .background(color)
-                                .size(if (pagerState.currentPage == iteration) 8.dp else 5.dp)
+                                .size(if (pagerState.currentPage == iteration) 6.dp else 4.dp)
                                 .animateContentSize()
                         )
                     }
@@ -259,13 +266,13 @@ fun HomeScreen(
 
         // Section Title
         Text(
-            text = "आधिकारिक लिंक (Official Portals)",
+            text = stringResource(R.string.portals_title),
             style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 13.sp
             ),
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 2.dp)
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 2.dp)
         )
 
         // Action Cards Grid (Only the 6 official website modules)
@@ -319,7 +326,7 @@ fun ActionCard(
             ) {
                 Icon(
                     imageVector = item.icon,
-                    contentDescription = item.titleHindi,
+                    contentDescription = stringResource(item.titleResId),
                     tint = item.color,
                     modifier = Modifier.size(18.dp)
                 )
@@ -328,7 +335,7 @@ fun ActionCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = item.titleHindi,
+                text = stringResource(item.titleResId),
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp

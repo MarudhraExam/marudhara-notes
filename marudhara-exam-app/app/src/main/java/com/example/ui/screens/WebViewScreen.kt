@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,6 +43,21 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 
+class AndroidExamInterface(
+    private val onTimeUpdated: (String) -> Unit,
+    private val onLanguageUpdated: (String) -> Unit
+) {
+    @JavascriptInterface
+    fun updateTime(time: String) {
+        onTimeUpdated(time)
+    }
+
+    @JavascriptInterface
+    fun updateLanguage(langCode: String) {
+        onLanguageUpdated(langCode)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -57,6 +75,8 @@ fun WebViewScreen(
     var progressVal by remember { mutableStateOf(0) }
     var hasError by remember { mutableStateOf(false) }
     var currentUrl by remember { mutableStateOf(url) }
+    var remainingTime by remember { mutableStateOf("00:00") }
+    var currentLanguage by remember { mutableStateOf("hi") }
 
     val webViewAlpha by animateFloatAsState(
         targetValue = if (isLoading) 0f else 1f,
@@ -77,14 +97,12 @@ fun WebViewScreen(
         networkMonitor.isOnline.collectLatest { online ->
             isOnline = online
             if (online && hasError) {
-                // Auto reload on reconnection
                 hasError = false
                 webView?.reload()
             }
         }
     }
 
-    // Intercept Back Pressed to go back in WebView history
     BackHandler(enabled = true) {
         if (webView?.canGoBack() == true) {
             webView?.goBack()
@@ -95,355 +113,776 @@ fun WebViewScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (webView?.canGoBack() == true) {
-                            webView?.goBack()
-                        } else {
-                            onNavigateBack()
-                        }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "पीछे जाएं"
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        hasError = false
-                        webView?.reload()
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "ताज़ा करें"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                )
-            )
-        },
-        modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            if (!isOnline || hasError) {
-                OfflineScreen(
-                    onRetry = {
-                        hasError = false
-                        if (networkMonitor.isCurrentlyConnected()) {
-                            isOnline = true
-                            webView?.reload()
-                        } else {
-                            isOnline = false
-                        }
-                    }
-                )
-            } else {
-                // Native WebView Wrapper
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
+            if (currentUrl.contains("exam.html")) {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth().padding(end = 12.dp)
+                        ) {
+                            Text(
+                                text = "Mock Exam / मॉक टेस्ट",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
                             
-                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                            // Dynamic remaining time
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(Color(0xFFF59E0B), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccessTime,
+                                    contentDescription = "Timer",
+                                    tint = Color(0xFF002B5B),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = remainingTime,
+                                    color = Color(0xFF002B5B),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
                             
-                            // Essential settings for high performance & responsive rendering
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.databaseEnabled = true
-                            settings.loadWithOverviewMode = true
-                            settings.useWideViewPort = true
-                            settings.builtInZoomControls = true
-                            settings.displayZoomControls = false
-                            settings.allowFileAccess = true
-                            settings.allowContentAccess = true
-                            settings.cacheMode = WebSettings.LOAD_DEFAULT
-
-                            // Append Custom App tag to User-Agent for easy backend detection
-                            val originalUA = settings.userAgentString
-                            settings.userAgentString = "$originalUA MarudharaExamAndroidApp"
-
-                            // Enable cookie synchronization for persistent login sessions
-                            val cookieManager = CookieManager.getInstance()
-                            cookieManager.setAcceptCookie(true)
-                            cookieManager.setAcceptThirdPartyCookies(this, true)
-
-                            addJavascriptInterface(
-                                AndroidDownloadInterface(ctx) { mockId, attemptId ->
-                                    val url = "https://marudhara-payment-api.jmdseller2025.workers.dev/api/download-question-paper?mockId=$mockId&attemptId=$attemptId"
-                                    val filename = "Marudhara_Question_Paper_${mockId}.pdf"
-                                    
-                                    (ctx as? android.app.Activity)?.runOnUiThread {
-                                        try {
-                                            val request = DownloadManager.Request(Uri.parse(url)).apply {
-                                                setTitle("मार्कशीट एवं प्रश्न पत्र डाउनलोड")
-                                                setDescription("Marudhara Exam - $filename")
-                                                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
-                                                setAllowedOverMetered(true)
-                                                setAllowedOverRoaming(true)
-                                                setMimeType("application/pdf")
-                                            }
-                                            val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                                            manager.enqueue(request)
-                                            Toast.makeText(ctx, "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                            Toast.makeText(ctx, "डाउनलोड विफल रहा: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                },
-                                "AndroidDownloadInterface"
-                            )
-
-                            webViewClient = object : WebViewClient() {
-                                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                    val requestUrl = request?.url?.toString() ?: ""
-                                    
-                                    // 1. Intercept PDF files to show in native viewer
-                                    if (requestUrl.endsWith(".pdf", ignoreCase = true) || 
-                                        requestUrl.contains("/pdfs/", ignoreCase = true) || 
-                                        requestUrl.contains(".pdf?", ignoreCase = true)) {
-                                        onOpenPdf("दस्तावेज़", requestUrl)
-                                        return true
-                                    }
-
-                                    // 2. Intercept Account page to redirect to native profile screen
-                                    if (requestUrl.contains("/mock-tests/account.html", ignoreCase = true)) {
-                                        onNavigateBack()
-                                        return true
-                                    }
-
-                                    return super.shouldOverrideUrlLoading(view, request)
-                                }
-
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    isLoading = true
-                                    hasError = false
-                                    if (url != null) {
-                                        currentUrl = url
-                                    }
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    
-                                    // Flush cookies to persistent storage
-                                    CookieManager.getInstance().flush()
-
-                                    // Inject hiding CSS stylesheet instantly to prevent showing Login, Logout or My Account
-                                    val cssHideScript = """
-                                        (function() {
-                                            try {
-                                                const style = document.createElement('style');
-                                                style.innerHTML = `
-                                                    #loginOverlay, #logoutBtn, #myAccountLink, .nav-login, .login-btn, .logout-btn, a[href*="account.html"] {
-                                                        display: none !important;
-                                                    }
-                                                `;
-                                                document.head.appendChild(style);
-
-                                                // Programmatic layout clean up
-                                                const overlay = document.getElementById('loginOverlay');
-                                                if (overlay) overlay.style.display = 'none';
-                                                const logout = document.getElementById('logoutBtn');
-                                                if (logout) logout.style.display = 'none';
-                                                const account = document.getElementById('myAccountLink');
-                                                if (account) account.style.display = 'none';
-                                            } catch(e) {
-                                                console.error('Styling injection error', e);
-                                            }
-                                        })()
-                                    """.trimIndent()
-                                    view?.evaluateJavascript(cssHideScript, null)
-
-                                    val currentUrl = url ?: ""
-                                    if (currentUrl.contains("marudharaexam.in")) {
-                                        val cleanName = (studentName ?: "प्रिय विद्यार्थी").trim()
-                                        val cleanMobile = (studentMobile ?: "").trim()
-                                        val pass = (savedPassword ?: "").trim()
-
-                                        if (cleanMobile.isNotEmpty()) {
-                                            // Inject LocalStorage/SessionStorage for Mock Tests matching website expectations
-                                            val sessionJson = "{\"studentName\":\"${cleanName}\",\"studentMobile\":\"${cleanMobile}\"}"
-                                            val storageScript = """
-                                                try {
-                                                    localStorage.setItem('mockExamSession', '$sessionJson');
-                                                    sessionStorage.setItem('mockExamSession', '$sessionJson');
-                                                } catch(e) {
-                                                    console.error('LocalStorage error', e);
-                                                }
-                                            """.trimIndent()
-                                            view?.evaluateJavascript(storageScript, null)
-
-                                            // Form Auto-Login Background Assistant
-                                            val formFillScript = """
-                                                (function() {
-                                                    try {
-                                                        const mobileInput = document.getElementById('loginMobile');
-                                                        const passwordInput = document.getElementById('loginPassword');
-                                                        const loginButton = document.getElementById('loginBtn');
-                                                        if (mobileInput && passwordInput && loginButton) {
-                                                            mobileInput.value = '$cleanMobile';
-                                                            passwordInput.value = '$pass';
-                                                            
-                                                            mobileInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                                            passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                                            
-                                                            setTimeout(function() {
-                                                                loginButton.click();
-                                                            }, 300);
-                                                        }
-                                                    } catch(e) {
-                                                        console.error('Form fill auto login failed', e);
-                                                    }
-                                                })()
-                                            """.trimIndent()
-                                            view?.evaluateJavascript(formFillScript, null)
-
-                                            // Authenticate the user programmatically in the WebView context using official Firebase Auth library
-                                            if (pass.isNotEmpty()) {
-                                                val email = "$cleanMobile@mockstudent.marudharaexam.in"
-                                                val firebaseScript = """
-                                                    (function() {
-                                                        try {
-                                                            import('https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js').then((m) => {
-                                                                const auth = m.getAuth();
-                                                                if (!auth.currentUser) {
-                                                                    m.signInWithEmailAndPassword(auth, '$email', '$pass').then((cred) => {
-                                                                        console.log('WebView signed in natively via Firebase successfully');
-                                                                    }).catch((err) => {
-                                                                        console.error('WebView Firebase sign in error', err);
-                                                                    });
-                                                                }
-                                                            }).catch((err) => {
-                                                                console.error('WebView import Firebase SDK failed', err);
-                                                            });
-                                                        } catch(e) {
-                                                            console.error('WebView injection error', e);
-                                                        }
-                                                    })()
-                                                """.trimIndent()
-                                                view?.evaluateJavascript(firebaseScript, null)
-                                            }
-                                        }
-                                    }
-
-                                    // Slightly delay hiding the loading overlay to allow the webpage to paint and prevent white flashes
-                                    view?.postDelayed({
-                                        isLoading = false
-                                    }, 200)
-                                }
-
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    error: WebResourceError?
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            // Language switcher dropdown
+                            Box {
+                                var expanded by remember { mutableStateOf(false) }
+                                Button(
+                                    onClick = { expanded = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(28.dp)
                                 ) {
-                                    super.onReceivedError(view, request, error)
-                                    // Ignore minor/sub-resource failures, check if primary URL fails
-                                    if (request?.isForMainFrame == true) {
-                                        hasError = true
-                                        isLoading = false
-                                    }
+                                    Text(
+                                        text = if (currentLanguage == "en") "English" else "हिंदी",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("English") },
+                                        onClick = {
+                                            expanded = false
+                                            webView?.evaluateJavascript(
+                                                "document.getElementById('languageSelect').value = 'en'; document.getElementById('languageSelect').dispatchEvent(new Event('change'));",
+                                                null
+                                            )
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("हिंदी") },
+                                        onClick = {
+                                            expanded = false
+                                            webView?.evaluateJavascript(
+                                                "document.getElementById('languageSelect').value = 'hi'; document.getElementById('languageSelect').dispatchEvent(new Event('change'));",
+                                                null
+                                            )
+                                        }
+                                    )
                                 }
                             }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Exam"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF002B5B),
+                        navigationIconContentColor = Color.White,
+                        titleContentColor = Color.White
+                    )
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = title,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { webView?.reload() }) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        },
+        content = { padding ->
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                if (!isOnline) {
+                    OfflineScreen(
+                        onRetry = {
+                            hasError = false
+                            webView?.reload()
+                        }
+                    )
+                } else if (hasError) {
+                    OfflineScreen(
+                        onRetry = {
+                            hasError = false
+                            webView?.reload()
+                        }
+                    )
+                } else {
+                    AndroidView(
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                settings.apply {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
+                                    databaseEnabled = true
+                                    useWideViewPort = true
+                                    loadWithOverviewMode = true
+                                    cacheMode = WebSettings.LOAD_DEFAULT
+                                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                }
 
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    super.onProgressChanged(view, newProgress)
-                                    progressVal = newProgress
-                                    if (newProgress == 100) {
+                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                                // Download file listener
+                                addJavascriptInterface(
+                                    object {
+                                        @JavascriptInterface
+                                        fun downloadFile(urlStr: String, fileName: String) {
+                                            try {
+                                                val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                                                val request = DownloadManager.Request(Uri.parse(urlStr)).apply {
+                                                    setTitle(fileName)
+                                                    setDescription("प्रश्नोत्तरी सामग्री डाउनलोड हो रही है...")
+                                                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                                    setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                                                    setAllowedOverMetered(true)
+                                                    setAllowedOverRoaming(true)
+                                                }
+                                                manager.enqueue(request)
+                                                Toast.makeText(ctx, "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                                Toast.makeText(ctx, "डाउनलोड विफल रहा: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    "AndroidDownloadInterface"
+                                )
+
+                                addJavascriptInterface(
+                                    AndroidExamInterface(
+                                        onTimeUpdated = { time ->
+                                            (ctx as? android.app.Activity)?.runOnUiThread {
+                                                remainingTime = time
+                                            }
+                                        },
+                                        onLanguageUpdated = { lang ->
+                                            (ctx as? android.app.Activity)?.runOnUiThread {
+                                                currentLanguage = lang
+                                            }
+                                        }
+                                    ),
+                                    "AndroidExamInterface"
+                                )
+
+                                webViewClient = object : WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                        val requestUrl = request?.url?.toString() ?: ""
+                                        
+                                        if (requestUrl.endsWith(".pdf", ignoreCase = true) || 
+                                            requestUrl.contains("/pdfs/", ignoreCase = true) || 
+                                            requestUrl.contains(".pdf?", ignoreCase = true)) {
+                                            onOpenPdf("दस्तावेज़", requestUrl)
+                                            return true
+                                        }
+
+                                        if (requestUrl.contains("/mock-tests/account.html", ignoreCase = true)) {
+                                            return true
+                                        }
+                                        return false
+                                    }
+
+                                    override fun onPageFinished(view: WebView?, urlStr: String?) {
+                                        super.onPageFinished(view, urlStr)
+                                        val currentUrl = urlStr ?: ""
+                                        
+                                        if (studentMobile != null && savedPassword != null) {
+                                            val cleanMobile = studentMobile!!.replace("+91", "").trim()
+                                            val pass = savedPassword!!
+                                            
+                                            val sessionSyncScript = """
+                                                try {
+                                                    const style = document.createElement('style');
+                                                    style.innerHTML = `
+                                                        #loginOverlay, #logoutBtn, #myAccountLink, .nav-login, .login-btn, .logout-btn, a[href*="account.html"] {
+                                                            display: none !important;
+                                                        }
+                                                    `;
+                                                    document.head.appendChild(style);
+
+                                                    const overlay = document.getElementById('loginOverlay');
+                                                    if (overlay) overlay.style.display = 'none';
+                                                    const logout = document.getElementById('logoutBtn');
+                                                    if (logout) logout.style.display = 'none';
+                                                    const account = document.getElementById('myAccountLink');
+                                                    if (account) account.style.display = 'none';
+
+                                                    if (!localStorage.getItem('mockExamSession')) {
+                                                        try {
+                                                            const mobileInput = document.getElementById('loginMobile');
+                                                            const passwordInput = document.getElementById('loginPassword');
+                                                            const loginButton = document.getElementById('loginBtn');
+                                                            if (mobileInput && passwordInput && loginButton) {
+                                                                mobileInput.value = '$cleanMobile';
+                                                                passwordInput.value = '$pass';
+                                                                loginButton.click();
+                                                                setTimeout(function() {
+                                                                    location.reload();
+                                                                }, 300);
+                                                            }
+                                                        } catch (err) {
+                                                            console.error("Auto login credentials inject error", err);
+                                                        }
+                                                    }
+                                                } catch (e) {
+                                                    console.error("Session sync error", e);
+                                                }
+                                            """.trimIndent()
+                                            view?.evaluateJavascript(sessionSyncScript, null)
+                                        }
+
+                                        if (currentUrl.contains("exam.html")) {
+                                            val examInterfaceScript = """
+                                                (function() {
+                                                    if (document.getElementById('native-action-bar')) return;
+
+                                                    function syncTimeToApp() {
+                                                        try {
+                                                            const timerEl = document.querySelector('.timer-box') || document.querySelector('.timer') || document.getElementById('timer');
+                                                            if (timerEl && window.AndroidExamInterface) {
+                                                                window.AndroidExamInterface.updateTime(timerEl.textContent.trim());
+                                                            }
+                                                            const langSelect = document.getElementById('languageSelect');
+                                                            if (langSelect && window.AndroidExamInterface) {
+                                                                window.AndroidExamInterface.updateLanguage(langSelect.value.trim());
+                                                            }
+                                                        } catch (e) {
+                                                            console.error("Sync to app error", e);
+                                                        }
+                                                    }
+                                                    setInterval(syncTimeToApp, 1000);
+
+                                                    const style = document.createElement('style');
+                                                    style.innerHTML = `
+                                                        html, body {
+                                                            height: 100vh !important;
+                                                            overflow: hidden !important;
+                                                            margin: 0 !important;
+                                                            padding: 0 !important;
+                                                            background-color: #F8FAFC !important;
+                                                            font-family: system-ui, -apple-system, sans-serif !important;
+                                                        }
+                                                        .page-shell {
+                                                            height: 100vh !important;
+                                                            display: flex !important;
+                                                            flex-direction: column !important;
+                                                            padding: 0 !important;
+                                                            margin: 0 !important;
+                                                            max-width: 100% !important;
+                                                            box-sizing: border-box !important;
+                                                        }
+                                                        .top-bar {
+                                                            display: none !important; /* Hide original top bar since native has it */
+                                                        }
+                                                        #mockMeta, .nav-buttons, .submit-card {
+                                                            display: none !important;
+                                                        }
+                                                        .exam-grid {
+                                                            display: flex !important;
+                                                            flex-direction: column !important;
+                                                            flex: 1 !important;
+                                                            padding: 8px !important;
+                                                            gap: 8px !important;
+                                                            overflow: hidden !important;
+                                                            box-sizing: border-box !important;
+                                                            height: calc(100vh - 44px - 96px) !important;
+                                                        }
+                                                        .question-card {
+                                                            background: #FFFFFF !important;
+                                                            border: 1px solid #E2E8F0 !important;
+                                                            border-radius: 12px !important;
+                                                            padding: 12px !important;
+                                                            margin: 0 !important;
+                                                            display: flex !important;
+                                                            flex-direction: column !important;
+                                                            box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
+                                                            overflow: hidden !important;
+                                                            flex: 1 !important;
+                                                        }
+                                                        .question-card h2 {
+                                                            font-size: 14px !important;
+                                                            color: #002B5B !important;
+                                                            font-weight: 800 !important;
+                                                            margin: 0 0 8px 0 !important;
+                                                            border-bottom: 2px solid #F1F5F9 !important;
+                                                            padding-bottom: 6px !important;
+                                                        }
+                                                        .question-text {
+                                                            font-size: 13.5px !important;
+                                                            line-height: 1.5 !important;
+                                                            margin: 0 !important;
+                                                            font-weight: 600 !important;
+                                                            color: #1E293B !important;
+                                                            overflow-y: auto !important;
+                                                            flex: 1 !important;
+                                                            padding-right: 4px !important;
+                                                        }
+                                                        #optionsForm {
+                                                            margin-top: 8px !important;
+                                                        }
+                                                        .options-list {
+                                                            display: flex !important;
+                                                            flex-direction: column !important;
+                                                            gap: 8px !important;
+                                                            margin: 0 !important;
+                                                            padding: 0 !important;
+                                                        }
+                                                        .options-list label {
+                                                            display: flex !important;
+                                                            align-items: center !important;
+                                                            background-color: #FFFFFF !important;
+                                                            border: 1.5px solid #E2E8F0 !important;
+                                                            border-radius: 10px !important;
+                                                            padding: 10px 12px !important;
+                                                            margin: 0 !important;
+                                                            cursor: pointer !important;
+                                                            font-size: 13px !important;
+                                                            line-height: 1.35 !important;
+                                                            transition: all 0.1s ease !important;
+                                                            color: #334155 !important;
+                                                            box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
+                                                        }
+                                                        .options-list label:hover {
+                                                            background-color: #F8FAFC !important;
+                                                        }
+                                                        .options-list input[type="radio"] {
+                                                            margin-right: 10px !important;
+                                                            transform: scale(1.15) !important;
+                                                        }
+                                                        .options-list label.checked-option {
+                                                            background-color: #EFF6FF !important;
+                                                            border-color: #3B82F6 !important;
+                                                            color: #1D4ED8 !important;
+                                                            font-weight: bold !important;
+                                                            box-shadow: 0 2px 6px rgba(59, 130, 246, 0.12) !important;
+                                                        }
+                                                        .palette-btn.marked-for-review {
+                                                            background-color: #F59E0B !important;
+                                                            color: #FFFFFF !important;
+                                                            border-color: #D97706 !important;
+                                                        }
+                                                        .palette-card {
+                                                            background: #FFFFFF !important;
+                                                            border: 1px solid #E2E8F0 !important;
+                                                            border-radius: 10px !important;
+                                                            padding: 6px 10px !important;
+                                                            margin: 0 8px !important;
+                                                            box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
+                                                            display: flex !important;
+                                                            flex-direction: row !important;
+                                                            align-items: center !important;
+                                                            gap: 8px !important;
+                                                            height: 44px !important;
+                                                            box-sizing: border-box !important;
+                                                            overflow: hidden !important;
+                                                        }
+                                                        .palette-card h3 {
+                                                            display: none !important;
+                                                        }
+                                                        .palette-grid {
+                                                            display: flex !important;
+                                                            flex-direction: row !important;
+                                                            gap: 5px !important;
+                                                            overflow-x: auto !important;
+                                                            flex: 1 !important;
+                                                            padding: 2px 0 !important;
+                                                            margin: 0 !important;
+                                                        }
+                                                        .palette-grid button, .palette-grid .palette-btn {
+                                                            min-width: 28px !important;
+                                                            height: 28px !important;
+                                                            border-radius: 50% !important;
+                                                            font-size: 11px !important;
+                                                            font-weight: bold !important;
+                                                            display: flex !important;
+                                                            align-items: center !important;
+                                                            justify-content: center !important;
+                                                            cursor: pointer !important;
+                                                            border: 1px solid #CBD5E1 !important;
+                                                            background: #F1F5F9 !important;
+                                                            color: #475569 !important;
+                                                            padding: 0 !important;
+                                                            margin: 0 !important;
+                                                        }
+                                                        .palette-grid button.answered, .palette-grid .palette-btn.answered {
+                                                            background-color: #10B981 !important;
+                                                            color: #FFFFFF !important;
+                                                            border-color: #059669 !important;
+                                                        }
+                                                        .palette-grid button.current, .palette-grid .palette-btn.current {
+                                                            border: 2px solid #002B5B !important;
+                                                            background-color: #DBEAFE !important;
+                                                            color: #002B5B !important;
+                                                        }
+                                                        #native-action-bar {
+                                                            display: flex !important;
+                                                            flex-direction: column !important;
+                                                            background: #FFFFFF !important;
+                                                            border-top: 1px solid #E2E8F0 !important;
+                                                            padding: 8px !important;
+                                                            gap: 8px !important;
+                                                            height: 96px !important;
+                                                            box-sizing: border-box !important;
+                                                            width: 100% !important;
+                                                            position: fixed !important;
+                                                            bottom: 0 !important;
+                                                            left: 0 !important;
+                                                            z-index: 99999 !important;
+                                                        }
+                                                        .native-row {
+                                                            display: flex !important;
+                                                            flex-direction: row !important;
+                                                            gap: 8px !important;
+                                                            width: 100% !important;
+                                                        }
+                                                        .native-btn {
+                                                            flex: 1 !important;
+                                                            height: 36px !important;
+                                                            border-radius: 8px !important;
+                                                            font-size: 11px !important;
+                                                            font-weight: bold !important;
+                                                            border: none !important;
+                                                            cursor: pointer !important;
+                                                            display: flex !important;
+                                                            align-items: center !important;
+                                                            justify-content: center !important;
+                                                            transition: all 0.1s ease !important;
+                                                            white-space: nowrap !important;
+                                                        }
+                                                        .primary-btn {
+                                                            background-color: #002B5B !important;
+                                                            color: #FFFFFF !important;
+                                                        }
+                                                        .secondary-btn {
+                                                            background-color: #E2E8F0 !important;
+                                                            color: #334155 !important;
+                                                        }
+                                                        .warning-btn {
+                                                            background-color: #F1F5F9 !important;
+                                                            color: #475569 !important;
+                                                            border: 1px solid #CBD5E1 !important;
+                                                        }
+                                                        .review-btn {
+                                                            background-color: #FEF3C7 !important;
+                                                            color: #D97706 !important;
+                                                            border: 1px solid #F59E0B !important;
+                                                        }
+                                                        .danger-btn {
+                                                            background-color: #FEE2E2 !important;
+                                                            color: #DC2626 !important;
+                                                            border: 1px solid #EF4444 !important;
+                                                        }
+                                                    `;
+                                                    document.head.appendChild(style);
+
+                                                    let markedQuestions = JSON.parse(localStorage.getItem('markedQuestions') || '{}');
+
+                                                    const actionBar = document.createElement('div');
+                                                    actionBar.id = 'native-action-bar';
+                                                    actionBar.innerHTML = `
+                                                        <div class="native-row">
+                                                            <button id="native-clear-btn" class="native-btn warning-btn">🗑️ Clear (हटाएं)</button>
+                                                            <button id="native-review-btn" class="native-btn review-btn">⭐ Review (समीक्षा)</button>
+                                                        </div>
+                                                        <div class="native-row">
+                                                            <button id="native-prev-btn" class="native-btn secondary-btn">◀ Prev (पिछला)</button>
+                                                            <button id="native-next-btn" class="native-btn primary-btn">Next (अगला) ▶</button>
+                                                            <button id="native-submit-btn" class="native-btn danger-btn">📤 Submit (सबमिट)</button>
+                                                        </div>
+                                                    `;
+                                                    
+                                                    const pageShell = document.querySelector('.page-shell');
+                                                    if (pageShell) {
+                                                        pageShell.appendChild(actionBar);
+                                                    } else {
+                                                        document.body.appendChild(actionBar);
+                                                    }
+
+                                                    function clickTarget(selectors, keywords) {
+                                                        let target = null;
+                                                        for (const sel of selectors) {
+                                                            const el = document.getElementById(sel) || document.querySelector(sel);
+                                                            if (el) {
+                                                                target = el;
+                                                                break;
+                                                            }
+                                                        }
+                                                        if (!target) {
+                                                            const buttons = document.querySelectorAll('button, input[type="button"], a.btn, .btn');
+                                                            for (const btn of buttons) {
+                                                                const text = btn.textContent.toLowerCase();
+                                                                for (const kw of keywords) {
+                                                                    if (text.includes(kw)) {
+                                                                        target = btn;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                if (target) break;
+                                                            }
+                                                        }
+                                                        if (target && !target.disabled) {
+                                                            target.click();
+                                                            setTimeout(updateUIRefresh, 150);
+                                                        }
+                                                    }
+
+                                                    document.getElementById('native-prev-btn').addEventListener('click', function() {
+                                                        clickTarget(['prevBtn', 'prevQuestion', 'previous'], ['prev', 'previous', 'पिछला']);
+                                                    });
+
+                                                    document.getElementById('native-next-btn').addEventListener('click', function() {
+                                                        clickTarget(['nextBtn', 'nextQuestion', 'next'], ['next', 'अगला']);
+                                                    });
+
+                                                    document.getElementById('native-submit-btn').addEventListener('click', function() {
+                                                        clickTarget(['submitBtn', 'submitTest', 'submit'], ['submit', 'सबमिट', 'पूरा करें']);
+                                                    });
+
+                                                    document.getElementById('native-clear-btn').addEventListener('click', function() {
+                                                        clickTarget(['clearBtn', 'clearResponse', 'resetBtn'], ['clear', 'reset', 'साफ़', 'हटाएं']);
+                                                    });
+
+                                                    document.getElementById('native-review-btn').addEventListener('click', function() {
+                                                        clickTarget(['markBtn', 'markReviewBtn', 'reviewBtn'], ['review', 'mark', 'मार्क', 'समीक्षा']);
+                                                    });
+
+                                                    function updateUIRefresh() {
+                                                        try {
+                                                            const labels = document.querySelectorAll('.options-list label');
+                                                            labels.forEach(lbl => {
+                                                                const radio = lbl.querySelector('input[type="radio"]');
+                                                                if (radio && radio.checked) {
+                                                                    lbl.classList.add('checked-option');
+                                                                } else {
+                                                                    lbl.classList.remove('checked-option');
+                                                                }
+                                                            });
+
+                                                            const paletteGrid = document.getElementById('palette');
+                                                            if (paletteGrid) {
+                                                                const btns = paletteGrid.querySelectorAll('button, .palette-btn');
+                                                                btns.forEach((btn, index) => {
+                                                                    const qNum = index + 1;
+                                                                    if (markedQuestions[qNum]) {
+                                                                        btn.classList.add('marked-for-review');
+                                                                    } else {
+                                                                        btn.classList.remove('marked-for-review');
+                                                                    }
+                                                                    if (!btn.hasAttribute('data-native-wired')) {
+                                                                        btn.setAttribute('data-native-wired', 'true');
+                                                                        btn.addEventListener('click', function() {
+                                                                            setTimeout(updateUIRefresh, 200);
+                                                                        });
+                                                                    }
+                                                                });
+                                                            }
+
+                                                            const originalPrev = document.getElementById('prevBtn');
+                                                            const originalNext = document.getElementById('nextBtn');
+                                                            const nativePrev = document.getElementById('native-prev-btn');
+                                                            const nativeNext = document.getElementById('native-next-btn');
+                                                            
+                                                            if (originalPrev && nativePrev) {
+                                                                nativePrev.disabled = originalPrev.disabled;
+                                                                nativePrev.style.opacity = originalPrev.disabled ? '0.4' : '1';
+                                                            }
+                                                            if (originalNext && nativeNext) {
+                                                                nativeNext.disabled = originalNext.disabled;
+                                                                nativeNext.style.opacity = originalNext.disabled ? '0.4' : '1';
+                                                            }
+                                                        } catch (e) {
+                                                            console.error('UI Refresh error', e);
+                                                        }
+                                                    }
+
+                                                    const observer = new MutationObserver(function() {
+                                                        updateUIRefresh();
+                                                    });
+                                                    const target = document.getElementById('examContent');
+                                                    if (target) {
+                                                        observer.observe(target, { childList: true, subtree: true });
+                                                    }
+                                                    
+                                                    setTimeout(updateUIRefresh, 300);
+                                                    setInterval(updateUIRefresh, 1000);
+                                                })()
+                                            """.trimIndent()
+                                            view?.evaluateJavascript(examInterfaceScript, null)
+                                        }
+
                                         view?.postDelayed({
                                             isLoading = false
                                         }, 200)
                                     }
-                                }
-                            }
 
-                            // Enable download support for notes, results, and PDF documents
-                            setDownloadListener { downloadUrl, _, _, _, _ ->
-                                if (downloadUrl.endsWith(".pdf", ignoreCase = true) || 
-                                    downloadUrl.contains("/pdfs/", ignoreCase = true) || 
-                                    downloadUrl.contains(".pdf?", ignoreCase = true)) {
-                                    onOpenPdf("दस्तावेज़", downloadUrl)
-                                } else {
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                            data = Uri.parse(downloadUrl)
+                                    override fun onReceivedError(
+                                        view: WebView?,
+                                        request: WebResourceRequest?,
+                                        error: WebResourceError?
+                                    ) {
+                                        super.onReceivedError(view, request, error)
+                                        if (request?.isForMainFrame == true) {
+                                            hasError = true
+                                            isLoading = false
                                         }
-                                        ctx.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        // Fallback if no activity handles the link
                                     }
                                 }
+
+                                webChromeClient = object : WebChromeClient() {
+                                    override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                        super.onProgressChanged(view, newProgress)
+                                        progressVal = newProgress
+                                        if (newProgress == 100) {
+                                            view?.postDelayed({
+                                                isLoading = false
+                                            }, 200)
+                                        }
+                                    }
+                                }
+
+                                setDownloadListener { downloadUrl, _, _, _, _ ->
+                                    if (downloadUrl.endsWith(".pdf", ignoreCase = true) || 
+                                        downloadUrl.contains("/pdfs/", ignoreCase = true) || 
+                                        downloadUrl.contains(".pdf?", ignoreCase = true)) {
+                                        onOpenPdf("दस्तावेज़", downloadUrl)
+                                    } else {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                data = Uri.parse(downloadUrl)
+                                            }
+                                            ctx.startActivity(intent)
+                                        } catch (e: Exception) {
+                                        }
+                                    }
+                                }
+
+                                webView = this
+                                loadUrl(currentUrl)
                             }
-
-                            webView = this
-                            loadUrl(currentUrl)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .alpha(webViewAlpha)
-                )
-
-                if (isLoading) {
-                    Box(
+                        },
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.primary,
-                                strokeWidth = 4.dp,
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "लोड हो रहा है...",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 13.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                            )
-                        }
+                            .alpha(webViewAlpha)
+                    )
+
+                    if (isLoading) {
+                        WebViewShimmerLoadingPlaceholder()
                     }
                 }
             }
+        }
+    )
+}
+
+@Composable
+fun WebViewShimmerLoadingPlaceholder() {
+    val infiniteTransition = rememberInfiniteTransition(label = "Shimmer")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "ShimmerAlpha"
+    )
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.LightGray.copy(alpha = alpha))
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.LightGray.copy(alpha = alpha))
+        )
+        repeat(4) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.LightGray.copy(alpha = alpha))
+            )
         }
     }
 }

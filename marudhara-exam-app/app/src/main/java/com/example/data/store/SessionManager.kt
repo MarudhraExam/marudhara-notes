@@ -20,6 +20,11 @@ class SessionManager(private val context: Context) {
         private val REMEMBER_ME = booleanPreferencesKey("remember_me")
         private val SAVED_PASSWORD = stringPreferencesKey("saved_password")
         private val PROFILE_PHOTO_URL = stringPreferencesKey("profile_photo_url")
+        private val APP_LANGUAGE = stringPreferencesKey("app_language")
+    }
+
+    val appLanguageFlow: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[APP_LANGUAGE] ?: "en"
     }
 
     val isLoggedInFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -77,6 +82,12 @@ class SessionManager(private val context: Context) {
             }
             preferences.remove(STUDENT_NAME)
             preferences.remove(PROFILE_PHOTO_URL)
+        }
+    }
+
+    suspend fun saveLanguage(lang: String) {
+        context.dataStore.edit { preferences ->
+            preferences[APP_LANGUAGE] = lang
         }
     }
 }
