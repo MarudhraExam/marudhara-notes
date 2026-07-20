@@ -74,6 +74,8 @@ fun ProfileScreen(
     val savedPassword by sessionManager.savedPasswordFlow.collectAsState(initial = null)
     val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
     val isEn = appLanguage == "en"
+    var showPdfDialog by remember { mutableStateOf(false) }
+    var pendingPdfUrl by remember { mutableStateOf("") }
 
     // Intercept Back Pressed to go back in WebView history
     BackHandler(enabled = webView?.canGoBack() == true) {
@@ -139,6 +141,13 @@ fun ProfileScreen(
                                         setAllowedOverMetered(true)
                                         setAllowedOverRoaming(true)
                                         setMimeType("application/pdf")
+                                        // Copy cookies and headers for secure PDF download
+                                        val cookies = CookieManager.getInstance().getCookie(url)
+                                        if (!cookies.isNullOrEmpty()) {
+                                            addRequestHeader("Cookie", cookies)
+                                        }
+                                        addRequestHeader("User-Agent", "MarudharaExamAndroidApp")
+                                        addRequestHeader("Referer", "https://marudharaexam.in/")
                                     }
                                     val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                                     manager.enqueue(request)
@@ -151,6 +160,15 @@ fun ProfileScreen(
                         },
                         "AndroidDownloadInterface"
                     )
+
+                    val bridgeInterface = MarudharaBridgeInterface(
+                        context = ctx,
+                        webView = this,
+                        isOnlineProvider = { true },
+                        onOpenPdf = { title, url -> onNavigateToWeb(title, url) }
+                    )
+                    addJavascriptInterface(bridgeInterface, "AndroidBridge")
+                    addJavascriptInterface(bridgeInterface, "Android")
 
                     addJavascriptInterface(
                         AndroidProfileInterface {
@@ -203,26 +221,12 @@ fun ProfileScreen(
                                 return true // Return true to consume and prevent webview crash/error page
                             }
 
-                            // 2. Intercept PDF files to show or handle natively
+                            // 2. Intercept PDF files to delegate to the WebView container for choice handling
                             if (requestUrl.endsWith(".pdf", ignoreCase = true) || 
                                 requestUrl.contains("/pdfs/", ignoreCase = true) || 
                                 requestUrl.contains(".pdf?", ignoreCase = true)) {
-                                val filename = "Marudhara_Document_${System.currentTimeMillis()}.pdf"
-                                try {
-                                    val req = DownloadManager.Request(Uri.parse(requestUrl)).apply {
-                                        setTitle(if (isEn) "Download Document" else "दस्तावेज़ डाउनलोड")
-                                        setDescription("Marudhara Exam - $filename")
-                                        setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                        setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
-                                        setAllowedOverMetered(true)
-                                        setAllowedOverRoaming(true)
-                                        setMimeType("application/pdf")
-                                    }
-                                    val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                                    manager.enqueue(req)
-                                    Toast.makeText(ctx, if (isEn) "Download started. Please check notifications." else "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
+                                (ctx as? android.app.Activity)?.runOnUiThread {
+                                    onNavigateToWeb(if (isEn) "दस्तावेज़" else "दस्तावेज़", requestUrl)
                                 }
                                 return true
                             }
@@ -241,6 +245,7 @@ fun ProfileScreen(
                             super.onPageFinished(view, url)
                             CookieManager.getInstance().flush()
                             view?.evaluateJavascript(GLOBAL_HEADER_HIDE_SCRIPT, null)
+                            view?.evaluateJavascript(BLOB_INTERCEPTION_SCRIPT, null)
 
                             // Hide header, navigation bar and redundant action elements from Profile dashboard
                             val cssHideScript = """
@@ -248,7 +253,7 @@ fun ProfileScreen(
                                     try {
                                         const style = document.createElement('style');
                                         style.innerHTML = `
-                                            header, footer, nav, .top-bar, .top-actions, .mobile-menu-btn, .section, #statusBar {
+                                            header, footer, nav, .top-bar, .top-actions, .mobile-menu-btn, #statusBar {
                                                 display: none !important;
                                             }
                                             .page-shell {
@@ -384,10 +389,32 @@ fun ProfileScreen(
                                 view?.evaluateJavascript(formFillScript, null)
                             }
 
-                            // Slight delay before fading in
-                            view?.postDelayed({
-                                isLoading = false
-                            }, 250)
+                            val currentLoadedUrl = url ?: ""
+                            if (currentLoadedUrl.contains("index.html", ignoreCase = true)) {
+                                // We are on index.html, inject script to auto-redirect back to account.html once login completes
+                                val redirectBackScript = """
+                                    (function() {
+                                        try {
+                                            const checkAuth = setInterval(function() {
+                                                const loginOverlay = document.getElementById('loginOverlay');
+                                                if (loginOverlay && loginOverlay.classList.contains('hidden')) {
+                                                    clearInterval(checkAuth);
+                                                    window.location.href = 'account.html';
+                                                }
+                                            }, 300);
+                                            setTimeout(function() { clearInterval(checkAuth); }, 15000);
+                                        } catch(e) {
+                                            console.error('Redirect script failed', e);
+                                        }
+                                    })()
+                                """.trimIndent()
+                                view?.evaluateJavascript(redirectBackScript, null)
+                            } else {
+                                // Slight delay before fading in
+                                view?.postDelayed({
+                                    isLoading = false
+                                }, 250)
+                            }
                         }
 
                         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -397,16 +424,31 @@ fun ProfileScreen(
                                 isLoading = false
                             }
                         }
+
+                        override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                            super.onReceivedError(view, errorCode, description, failingUrl)
+                            hasError = true
+                            isLoading = false
+                        }
                     }
 
                     webChromeClient = object : WebChromeClient() {
                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
                             super.onProgressChanged(view, newProgress)
                             progressVal = newProgress
+                            if (newProgress >= 20) {
+                                view?.evaluateJavascript(GLOBAL_HEADER_HIDE_SCRIPT, null)
+                                view?.evaluateJavascript(BLOB_INTERCEPTION_SCRIPT, null)
+                            }
                             if (newProgress == 100) {
-                                view?.postDelayed({
-                                    isLoading = false
-                                }, 250)
+                                view?.evaluateJavascript(GLOBAL_HEADER_HIDE_SCRIPT, null)
+                                view?.evaluateJavascript(BLOB_INTERCEPTION_SCRIPT, null)
+                                val currentLoadedUrl = view?.url ?: ""
+                                if (!currentLoadedUrl.contains("index.html", ignoreCase = true)) {
+                                    view?.postDelayed({
+                                        isLoading = false
+                                    }, 250)
+                                }
                             }
                         }
                     }
@@ -420,8 +462,70 @@ fun ProfileScreen(
                 .alpha(webViewAlpha)
         )
 
+        // LaunchedEffect as an absolute timeout safeguard to prevent infinite loading state
+        LaunchedEffect(isLoading) {
+            if (isLoading) {
+                kotlinx.coroutines.delay(12000) // 12 seconds timeout safeguard
+                if (isLoading) {
+                    isLoading = false
+                    if (progressVal < 10) {
+                        hasError = true
+                    }
+                }
+            }
+        }
+
         if (isLoading) {
             ShimmerLoadingPlaceholder()
+        }
+
+        if (hasError) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "⚠️",
+                        fontSize = 48.sp,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    Text(
+                        text = if (isEn) "Network Connection Error" else "नेटवर्क कनेक्शन त्रुटि",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Text(
+                        text = if (isEn) 
+                            "Unable to load profile. Please check your internet connection and try again." 
+                        else 
+                            "प्रोफ़ाइल लोड करने में असमर्थ। कृपया अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+                    Button(
+                        onClick = {
+                            hasError = false
+                            isLoading = true
+                            webView?.reload()
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(text = if (isEn) "Retry" else "पुनः प्रयास करें")
+                    }
+                }
+            }
         }
     }
 }
@@ -536,11 +640,19 @@ private const val GLOBAL_HEADER_HIDE_SCRIPT = """
         }
         
         style.innerHTML = `
-            header, .site-header, .app-header, .main-header, #header, #site-header,
-            nav, .navbar, .main-nav, #navbar, .navigation,
-            .top-actions, .header-actions, #logoutBtn, .logout-btn, .account-btn, .profile-btn,
-            .mobile-menu-btn, .menu-btn, .brand, .logo, [class*="logo-"], [id*="logo-"],
-            .brand-logo, .brand-name {
+            /* Comprehensive selectors to hide website headers, navbars, topbars, and logo sections */
+            header, .site-header, .app-header, .main-header, #header, #site-header, .header, #header,
+            nav, .navbar, .main-nav, #navbar, .navigation, .nav-container, .nav-bar, .navigation-bar,
+            .top-bar, #top-bar, .topbar, #topbar, .top-header, #top-header, .header-top,
+            .logo-bar, .logobar, #logo-bar, #logobar, .site-logo, .brand, .logo, [class*="logo-"], [id*="logo-"],
+            .brand-logo, .brand-name, .desktop-nav, .desktop-navigation, .site-navigation, .site-nav,
+            .hamburger, .hamburger-menu, .menu-toggle, .nav-toggle, .mobile-menu-btn, .menu-btn,
+            .mobile-nav, .mobile-navigation, .nav-menu, .menu-container, .menu-wrapper,
+            .navbar-container, .navbar-wrapper, .elementor-header, .elementor-location-header,
+            .wp-block-navigation, .wp-custom-header, #mysticky-nav, .mysticky-navigation,
+            .menu-main-container, .menu-primary-container, .primary-menu, .secondary-menu,
+            .header-v1, .header-v2, .header-v3, .header-v4, .header-v5,
+            .top-actions, .header-actions, #logoutBtn, .logout-btn, .account-btn, .profile-btn {
                 display: none !important;
                 height: 0 !important;
                 margin: 0 !important;
@@ -552,7 +664,7 @@ private const val GLOBAL_HEADER_HIDE_SCRIPT = """
             .mock-header, .category-header, .page-header, .welcome-section, .welcome-card, .welcome-banner,
             .intro-section, .intro-banner, .page-title, .section-title-main, .hero-banner,
             .banner-section, .banner-container, .promo-banner, .page-header-container,
-            .site-title, .site-description, .site-logo {
+            .site-title, .site-description {
                 display: none !important;
                 height: 0 !important;
                 margin: 0 !important;
@@ -576,6 +688,76 @@ private const val GLOBAL_HEADER_HIDE_SCRIPT = """
                 margin-top: 0 !important;
             }
         `;
+
+        // Dynamic element traversal hiding to act as a fail-safe
+        function hideHeaderElementsDynamically() {
+            try {
+                // Hide specific tag names
+                const tagNames = ['header', 'nav'];
+                tagNames.forEach(tag => {
+                    const elms = document.getElementsByTagName(tag);
+                    for (let i = 0; i < elms.length; i++) {
+                        elms[i].style.setProperty("display", "none", "important");
+                        elms[i].style.setProperty("height", "0", "important");
+                        elms[i].style.setProperty("margin", "0", "important");
+                        elms[i].style.setProperty("padding", "0", "important");
+                        elms[i].style.setProperty("overflow", "hidden", "important");
+                    }
+                });
+
+                // Traverse body children to find structural containers that act as headers/logos/navs
+                const body = document.body || document.documentElement;
+                if (body) {
+                    const children = body.children;
+                    for (let i = 0; i < children.length; i++) {
+                        const child = children[i];
+                        const tagName = child.tagName.toLowerCase();
+                        if (tagName === 'header' || tagName === 'nav') {
+                            child.style.setProperty("display", "none", "important");
+                            child.style.setProperty("height", "0", "important");
+                            child.style.setProperty("margin", "0", "important");
+                            child.style.setProperty("padding", "0", "important");
+                            child.style.setProperty("overflow", "hidden", "important");
+                            continue;
+                        }
+
+                        const id = (child.id || '').toLowerCase();
+                        const cls = (typeof child.className === 'string' ? child.className : '').toLowerCase();
+
+                        // Target classes/IDs that look like top-level headers, navbars, or logos
+                        const looksLikeHeader = 
+                            id.includes('header') || cls.includes('header') ||
+                            id.includes('navbar') || cls.includes('navbar') ||
+                            id.includes('nav-bar') || cls.includes('nav-bar') ||
+                            id.includes('logo-bar') || cls.includes('logo-bar') ||
+                            id.includes('logobar') || cls.includes('logobar') ||
+                            id.includes('topbar') || cls.includes('topbar') ||
+                            id.includes('top-bar') || cls.includes('top-bar') ||
+                            id.includes('navigation') || cls.includes('navigation') ||
+                            cls.includes('brand') || id.includes('brand') ||
+                            cls.includes('menu') || id.includes('menu');
+
+                        // Exclude major content-important elements
+                        const looksLikeContent = 
+                            id.includes('content') || cls.includes('content') ||
+                            id.includes('main') || cls.includes('main') ||
+                            id.includes('wrapper') || cls.includes('wrapper') ||
+                            id.includes('container') || cls.includes('container') ||
+                            id.includes('page-body') || cls.includes('page-body') ||
+                            cls.includes('post') || cls.includes('article') ||
+                            cls.includes('card') || cls.includes('table');
+
+                        if (looksLikeHeader && !looksLikeContent) {
+                            child.style.setProperty("display", "none", "important");
+                            child.style.setProperty("height", "0", "important");
+                            child.style.setProperty("margin", "0", "important");
+                            child.style.setProperty("padding", "0", "important");
+                            child.style.setProperty("overflow", "hidden", "important");
+                        }
+                    }
+                }
+            } catch (err) {}
+        }
 
         function runTextHide() {
             try {
@@ -605,17 +787,121 @@ private const val GLOBAL_HEADER_HIDE_SCRIPT = """
                     el.style.setProperty("height", "0", "important");
                     el.style.setProperty("margin", "0", "important");
                     el.style.setProperty("padding", "0", "important");
+                    el.style.setProperty("overflow", "hidden", "important");
                 });
             } catch (e) {}
         }
+
+        // Execute immediately
+        hideHeaderElementsDynamically();
         runTextHide();
-        setTimeout(runTextHide, 100);
-        setTimeout(runTextHide, 300);
-        setTimeout(runTextHide, 600);
-        setTimeout(runTextHide, 1200);
-        setTimeout(runTextHide, 2500);
+
+        // Use MutationObserver for continuous, event-driven DOM modifications without polling or settimeouts
+        const observer = new MutationObserver(function() {
+            hideHeaderElementsDynamically();
+            runTextHide();
+        });
+
+        observer.observe(document.documentElement || document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // Fail-safe listeners for standard page load phases
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                hideHeaderElementsDynamically();
+                runTextHide();
+            });
+        }
+        window.addEventListener('load', function() {
+            hideHeaderElementsDynamically();
+            runTextHide();
+        });
     } catch(e) {
         console.error('Global web header hide failed', e);
     }
 })()
 """;
+
+private const val BLOB_INTERCEPTION_SCRIPT = """
+(function() {
+    try {
+        if (window.hasBlobInterceptionApplied) return;
+        window.hasBlobInterceptionApplied = true;
+
+        // 1. Intercept URL.createObjectURL
+        const originalCreateObjectURL = window.URL.createObjectURL;
+        window.URL.createObjectURL = function(blob) {
+            if (blob instanceof Blob && blob.type === 'application/pdf') {
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const base64Data = reader.result.split(',')[1];
+                    if (window.AndroidBridge && window.AndroidBridge.downloadBlob) {
+                        window.AndroidBridge.downloadBlob(base64Data, "Marudhara_Question_Paper.pdf", "application/pdf");
+                    } else if (window.Android && window.Android.downloadBlob) {
+                        window.Android.downloadBlob(base64Data, "Marudhara_Question_Paper.pdf", "application/pdf");
+                    }
+                };
+                reader.readAsDataURL(blob);
+                return originalCreateObjectURL(blob);
+            }
+            return originalCreateObjectURL(blob);
+        };
+
+        // 2. Intercept click on any anchor tags with href starting with blob:
+        document.addEventListener('click', function(e) {
+            let target = e.target;
+            while (target && target.tagName !== 'A') {
+                target = target.parentNode;
+            }
+            if (target && target.href && target.href.startsWith('blob:')) {
+                e.preventDefault();
+                const blobUrl = target.href;
+                fetch(blobUrl)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            const base64Data = reader.result.split(',')[1];
+                            const filename = target.download || "Marudhara_Document.pdf";
+                            if (window.AndroidBridge && window.AndroidBridge.downloadBlob) {
+                                window.AndroidBridge.downloadBlob(base64Data, filename, "application/pdf");
+                            } else if (window.Android && window.Android.downloadBlob) {
+                                window.Android.downloadBlob(base64Data, filename, "application/pdf");
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                    }).catch(err => {
+                        console.error("Failed to intercept blob click", err);
+                    });
+            }
+        }, true);
+
+        // 3. Intercept window.open
+        const originalOpen = window.open;
+        window.open = function(url, name, specs) {
+            if (url && url.startsWith('blob:')) {
+                fetch(url)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            const base64Data = reader.result.split(',')[1];
+                            if (window.AndroidBridge && window.AndroidBridge.downloadBlob) {
+                                window.AndroidBridge.downloadBlob(base64Data, "Marudhara_Document.pdf", "application/pdf");
+                            } else if (window.Android && window.Android.downloadBlob) {
+                                window.Android.downloadBlob(base64Data, "Marudhara_Document.pdf", "application/pdf");
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                    });
+                return null;
+            }
+            return originalOpen(url, name, specs);
+        };
+    } catch(e) {
+        console.error("Blob interception setup failed", e);
+    }
+})();
+"""

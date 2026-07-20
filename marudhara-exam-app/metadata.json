@@ -1,6 +1,8 @@
 {
-  "name": "Marudhara Exam",
-  "description": "Premium competition application for Marudhara Exam Competition and Mock Tests.",
+  "name": "Remix: Marudhara Exam V2",
+  "description": "Premium companion application for Marudhara Exam Competition and Mock Tests.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

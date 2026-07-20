@@ -1,8 +1,16 @@
 package com.example.ui.screens
 
+import android.app.DownloadManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
+import android.net.Uri
+import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.webkit.CookieManager
+import android.webkit.MimeTypeMap
+import android.webkit.URLUtil
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -13,6 +21,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.*
@@ -79,6 +88,15 @@ fun PdfViewerScreen(
                     val connection = URL(url).openConnection() as HttpURLConnection
                     connection.connectTimeout = 15000
                     connection.readTimeout = 15000
+                    
+                    // Copy cookies for secure/authorized PDFs
+                    val cookies = CookieManager.getInstance().getCookie(url)
+                    if (!cookies.isNullOrEmpty()) {
+                        connection.setRequestProperty("Cookie", cookies)
+                    }
+                    connection.setRequestProperty("User-Agent", "MarudharaExamAndroidApp")
+                    connection.setRequestProperty("Referer", "https://marudharaexam.in/")
+                    
                     connection.connect()
 
                     if (connection.responseCode != HttpURLConnection.HTTP_OK) {
@@ -192,6 +210,52 @@ fun PdfViewerScreen(
                         }
                     }) {
                         Icon(imageVector = Icons.Default.ZoomOut, contentDescription = "ज़ूम आउट", tint = Color.White)
+                    }
+                    IconButton(onClick = {
+                        try {
+                            val uri = Uri.parse(url)
+                            val extension = MimeTypeMap.getFileExtensionFromUrl(url)
+                            val mimeType = if (!extension.isNullOrEmpty()) {
+                                MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
+                            } else {
+                                "application/pdf"
+                            }
+                            var filename = URLUtil.guessFileName(url, null, mimeType)
+                            if (filename.isNullOrEmpty() || filename.endsWith(".bin") || filename.contains("guessFileName")) {
+                                filename = if (title.isNotEmpty()) {
+                                    "${title.replace("[^a-zA-Z0-9\\u0900-\\u097F]".toRegex(), "_")}.pdf"
+                                } else {
+                                    "Marudhara_Document_${System.currentTimeMillis()}.pdf"
+                                }
+                            }
+                            if (!filename.endsWith(".pdf", ignoreCase = true)) {
+                                filename += ".pdf"
+                            }
+
+                            val request = DownloadManager.Request(uri).apply {
+                                setTitle(filename)
+                                setDescription("Marudhara Exam - $filename")
+                                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+                                setAllowedOverMetered(true)
+                                setAllowedOverRoaming(true)
+                                setMimeType("application/pdf")
+                                val cookies = CookieManager.getInstance().getCookie(url)
+                                if (!cookies.isNullOrEmpty()) {
+                                    addRequestHeader("Cookie", cookies)
+                                }
+                                addRequestHeader("User-Agent", "MarudharaExamAndroidApp")
+                                addRequestHeader("Referer", "https://marudharaexam.in/")
+                            }
+                            val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                            manager.enqueue(request)
+                            Toast.makeText(context, "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            Toast.makeText(context, "डाउनलोड विफल रहा: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                        }
+                    }) {
+                        Icon(imageVector = Icons.Default.Download, contentDescription = "डाउनलोड करें", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

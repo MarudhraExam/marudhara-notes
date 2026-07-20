@@ -81,6 +81,19 @@ fun AppNavigation(
                 },
                 onNavigateToWeb = { title, url ->
                     navController.navigate(Screen.WebView.createRoute(title, url))
+                },
+                onNavigateToNotifications = {
+                    navController.navigate(Screen.NotificationCenter.route)
+                }
+            )
+        }
+
+        // Local Notification Center Screen
+        composable(Screen.NotificationCenter.route) {
+            NotificationCenterScreen(
+                sessionManager = sessionManager,
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

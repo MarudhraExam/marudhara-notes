@@ -257,7 +257,7 @@ fun HomeScreen(
                             AsyncImage(
                                 model = banner.imageUrl,
                                 contentDescription = "Live Promo Banner",
-                                contentScale = ContentScale.Crop, // Crop to cover the larger container nicely
+                                contentScale = ContentScale.Fit, // Display the complete image without cropping
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clickable {

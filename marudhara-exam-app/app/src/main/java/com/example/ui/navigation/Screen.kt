@@ -10,6 +10,7 @@ sealed class Screen(val route: String) {
     object Mock : Screen("mock")
     object Updates : Screen("updates")
     object Profile : Screen("profile")
+    object NotificationCenter : Screen("notification_center")
     
     // Parametric WebView Screen to reuse for any website page (OMR, Mock, Results, Sujas, etc.)
     object WebView : Screen("web_view/{title}/{url}") {

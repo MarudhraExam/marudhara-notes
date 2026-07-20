@@ -29,6 +29,9 @@ import com.example.data.store.SessionManager
 import android.widget.Toast
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notification.NotificationViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 data class DrawerMenuItem(
     val titleHindi: String,
@@ -50,6 +53,7 @@ fun MainScaffold(
     sessionManager: SessionManager,
     onLogout: () -> Unit,
     onNavigateToWeb: (title: String, url: String) -> Unit,
+    onNavigateToNotifications: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -58,6 +62,9 @@ fun MainScaffold(
     
     val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
     val isEn = appLanguage == "en"
+
+    val notificationViewModel: NotificationViewModel = viewModel()
+    val unreadCount by notificationViewModel.unreadCount.collectAsStateWithLifecycle()
 
     var selectedBottomTab by remember { mutableIntStateOf(0) }
     var studentName by remember { mutableStateOf("") }
@@ -422,17 +429,28 @@ fun MainScaffold(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
-                                onClick = {
-                                    onNavigateToWeb(if (isEn) "Vacancy Updates" else "नवीनतम भर्तियां", "https://marudharaexam.in/vacancy.html")
-                                },
+                                onClick = onNavigateToNotifications,
                                 modifier = Modifier.size(48.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Notifications,
-                                    contentDescription = if (isEn) "Notifications" else "नोटिफिकेशन",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                BadgedBox(
+                                    badge = {
+                                        if (unreadCount > 0) {
+                                            Badge(
+                                                containerColor = MaterialTheme.colorScheme.secondary,
+                                                contentColor = Color.White
+                                            ) {
+                                                Text(text = unreadCount.toString())
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Notifications,
+                                        contentDescription = if (isEn) "Notifications" else "नोटिफिकेशन",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                             
                             if (selectedBottomTab == 4) {
