@@ -26,15 +26,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.stringResource
-import com.example.R
 import coil.compose.AsyncImage
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
 // Action Card data model matching allowed modules
 data class ActionItem(
-    val titleResId: Int,
+    val titleHindi: String,
     val titleEnglish: String,
     val icon: ImageVector,
     val color: Color,
@@ -52,6 +50,7 @@ data class BannerItem(
 @Composable
 fun HomeScreen(
     studentName: String,
+    appLanguage: String,
     onNavigateToWeb: (title: String, url: String) -> Unit,
     onSelectBottomTab: (index: Int) -> Unit,
     modifier: Modifier = Modifier
@@ -91,10 +90,10 @@ fun HomeScreen(
     }
 
     // Allowed 6 Tiles from Official website
-    val actions = remember {
+    val actions = remember(appLanguage) {
         listOf(
             ActionItem(
-                titleResId = R.string.nav_omr,
+                titleHindi = "OMR चेक",
                 titleEnglish = "OMR Check",
                 icon = Icons.Default.FactCheck,
                 color = Color(0xFF10B981),
@@ -102,7 +101,7 @@ fun HomeScreen(
                 titleParam = "OMR चेक"
             ),
             ActionItem(
-                titleResId = R.string.nav_mock,
+                titleHindi = "मॉक टेस्ट",
                 titleEnglish = "Mock Tests",
                 icon = Icons.Default.Assignment,
                 color = Color(0xFF002B5B),
@@ -110,15 +109,15 @@ fun HomeScreen(
                 titleParam = "मॉक टेस्ट"
             ),
             ActionItem(
-                titleResId = R.string.nav_results,
+                titleHindi = "OMR चेक परिणाम",
                 titleEnglish = "OMR Check Result",
                 icon = Icons.Default.Assessment,
                 color = Color(0xFF3B82F6),
                 targetUrl = "https://marudharaexam.in/results.html",
-                titleParam = "OMR Check Result"
+                titleParam = "परीक्षा परिणाम"
             ),
             ActionItem(
-                titleResId = R.string.nav_vacancy,
+                titleHindi = "नवीनतम भर्तियां",
                 titleEnglish = "Vacancy Updates",
                 icon = Icons.Default.Campaign,
                 color = Color(0xFFF59E0B),
@@ -126,7 +125,7 @@ fun HomeScreen(
                 titleParam = "नवीनतम भर्तियां"
             ),
             ActionItem(
-                titleResId = R.string.nav_student,
+                titleHindi = "विद्यार्थी कॉर्नर",
                 titleEnglish = "Student Corner",
                 icon = Icons.Default.School,
                 color = Color(0xFF8B5CF6),
@@ -134,7 +133,7 @@ fun HomeScreen(
                 titleParam = "विद्यार्थी कॉर्नर"
             ),
             ActionItem(
-                titleResId = R.string.nav_vacancy_result,
+                titleHindi = "भर्ती परिणाम",
                 titleEnglish = "Vacancy Result",
                 icon = Icons.Default.TaskAlt,
                 color = Color(0xFFEC4899),
@@ -157,135 +156,168 @@ fun HomeScreen(
         }
     }
 
-    Column(
+    val isEn = appLanguage == "en"
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.TopCenter
     ) {
-        // Welcome and Banner Header
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 1.dp)
-        ) {
-            // Welcome Greeting
-            Text(
-                text = stringResource(R.string.welcome_back, studentName),
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                ),
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = stringResource(R.string.welcome_sub),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 11.sp
-                ),
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                modifier = Modifier.padding(top = 0.dp, bottom = 2.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        val screenHeight = maxHeight
+        val screenWidth = maxWidth
 
-            // Dynamic Banner Slider
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(3.2f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.LightGray.copy(alpha = 0.15f))
-            ) { page ->
-                if (banners.isEmpty()) {
-                    // Placeholder / Fallback dynamic visual
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.primary)
-                            .padding(12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (isLoadingBanners) stringResource(R.string.banner_loading) else stringResource(R.string.banner_slogan),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontSize = 14.sp
-                            ),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    val banner = banners[page]
-                    AsyncImage(
-                        model = banner.imageUrl,
-                        contentDescription = "Live Promo Banner",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable {
-                                if (banner.targetUrl.isNotEmpty()) {
-                                    onNavigateToWeb("विवरण", banner.targetUrl)
-                                }
-                            }
-                    )
-                }
-            }
+        val isLandscape = screenWidth > screenHeight
+        val isSmallScreen = screenHeight < 680.dp || screenWidth < 360.dp
 
-            Spacer(modifier = Modifier.height(2.dp))
+        val bannerRatio = if (isLandscape) 2.6f else if (isSmallScreen) 2.0f else 1.9f
+        val columnsCount = if (isLandscape) 3 else 2
+        val gridSpacing = if (isSmallScreen) 8.dp else 12.dp
+        val topPadding = if (isSmallScreen) 8.dp else 14.dp
+        val bottomPadding = if (isSmallScreen) 8.dp else 16.dp
+        val welcomeBottomPadding = if (isSmallScreen) 8.dp else 12.dp
+        val sectionTopPadding = if (isSmallScreen) 6.dp else 12.dp
 
-            // Banner dots indicator
-            if (banners.size > 1) {
-                Row(
-                    Modifier
-                        .wrapContentHeight()
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    repeat(banners.size) { iteration ->
-                        val color = if (pagerState.currentPage == iteration) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .padding(1.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .size(if (pagerState.currentPage == iteration) 6.dp else 4.dp)
-                                .animateContentSize()
-                        )
-                    }
-                }
-            }
-        }
-
-        // Section Title
-        Text(
-            text = stringResource(R.string.portals_title),
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            ),
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 2.dp)
-        )
-
-        // Action Cards Grid (Only the 6 official website modules)
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxSize()
+            columns = GridCells.Fixed(columnsCount),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topPadding, bottom = bottomPadding),
+            horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+            verticalArrangement = Arrangement.spacedBy(gridSpacing),
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 600.dp)
         ) {
+            // Welcome and Banner Header (Spans full columns)
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columnsCount) }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                ) {
+                    // Welcome Greeting
+                    Text(
+                        text = if (isEn) "Hello, $studentName 👋" else "नमस्ते, $studentName 👋",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = if (isSmallScreen) 18.sp else 20.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Text(
+                        text = if (isEn) "Welcome to Marudhara Exam Companion App." else "मरुधरा एग्जाम Companion App में आपका स्वागत है।",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = if (isSmallScreen) 11.sp else 13.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                        modifier = Modifier.padding(top = 1.dp, bottom = welcomeBottomPadding)
+                    )
+
+                    // Dynamic Banner Slider (Noticeably larger - aspectRatio 1.9f instead of 2.6f)
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(bannerRatio)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White)
+                    ) { page ->
+                        if (banners.isEmpty()) {
+                            // Placeholder / Fallback dynamic visual with premium educational style
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                            colors = listOf(
+                                                MaterialTheme.colorScheme.primary,
+                                                Color(0xFF1E4E8C)
+                                            )
+                                        )
+                                    )
+                                    .padding(if (isSmallScreen) 12.dp else 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isLoadingBanners) {
+                                        if (isEn) "Loading banners..." else "बैनर लोड हो रहे हैं..."
+                                    } else {
+                                        if (isEn) "Marudhara Exam - Pathway to Success" else "Marudhara Exam - सफलता की राह"
+                                    },
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        fontSize = if (isSmallScreen) 14.sp else 18.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                )
+                            }
+                        } else {
+                            val banner = banners[page]
+                            AsyncImage(
+                                model = banner.imageUrl,
+                                contentDescription = "Live Promo Banner",
+                                contentScale = ContentScale.Crop, // Crop to cover the larger container nicely
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable {
+                                        if (banner.targetUrl.isNotEmpty()) {
+                                            onNavigateToWeb("विवरण", banner.targetUrl)
+                                        }
+                                    }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Banner dots indicator
+                    if (banners.size > 1) {
+                        Row(
+                            Modifier
+                                .wrapContentHeight()
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            repeat(banners.size) { iteration ->
+                                val color = if (pagerState.currentPage == iteration) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .padding(1.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .size(if (pagerState.currentPage == iteration) 6.dp else 4.dp)
+                                        .animateContentSize()
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Section Title (Spans full columns)
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(columnsCount) }) {
+                Text(
+                    text = if (isEn) "Official Portals" else "आधिकारिक लिंक (Official Portals)",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = if (isSmallScreen) 13.sp else 15.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.padding(top = sectionTopPadding, bottom = 2.dp)
+                )
+            }
+
+            // Action Cards Grid
             items(actions) { item ->
                 ActionCard(
                     item = item,
+                    appLanguage = appLanguage,
+                    isSmallScreen = isSmallScreen,
                     onClick = { onNavigateToWeb(item.titleParam, item.targetUrl) }
                 )
             }
@@ -296,14 +328,17 @@ fun HomeScreen(
 @Composable
 fun ActionCard(
     item: ActionItem,
+    appLanguage: String,
+    isSmallScreen: Boolean,
     onClick: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color.White // Clean white cards as requested
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSmallScreen) 1.dp else 2.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEFECE6)), // Elegant subtle border matching cream theme
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
@@ -313,32 +348,33 @@ fun ActionCard(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 10.dp)
+                .padding(vertical = if (isSmallScreen) 8.dp else 12.dp, horizontal = if (isSmallScreen) 6.dp else 10.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(if (isSmallScreen) 32.dp else 40.dp)
                     .background(
-                        color = item.color.copy(alpha = 0.12f),
+                        color = item.color.copy(alpha = 0.08f),
                         shape = RoundedCornerShape(8.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = item.icon,
-                    contentDescription = stringResource(item.titleResId),
+                    contentDescription = item.titleHindi,
                     tint = item.color,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(if (isSmallScreen) 18.dp else 20.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(if (isSmallScreen) 4.dp else 8.dp))
 
+            val isEn = appLanguage == "en"
             Text(
-                text = stringResource(item.titleResId),
+                text = if (isEn) item.titleEnglish else item.titleHindi,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = if (isSmallScreen) 11.sp else 13.sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
@@ -349,12 +385,12 @@ fun ActionCard(
             Spacer(modifier = Modifier.height(1.dp))
 
             Text(
-                text = item.titleEnglish,
+                text = if (isEn) item.titleHindi else item.titleEnglish,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 10.sp,
+                    fontSize = if (isSmallScreen) 9.sp else 10.sp,
                     fontWeight = FontWeight.Medium
                 ),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

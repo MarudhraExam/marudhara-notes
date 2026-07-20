@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import android.annotation.SuppressLint
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -57,6 +59,9 @@ fun LoginScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
+    val isEn = appLanguage == "en"
+
     var currentMode by remember { mutableStateOf(AuthMode.SIGN_IN) }
 
     // Login Form State
@@ -102,9 +107,9 @@ fun LoginScreen(
         val trimmedPassword = password.trim()
 
         if (trimmedMobile.length < 10) {
-            errorMessage = "कृपया एक वैध 10-अंकों का मोबाइल नंबर दर्ज करें।"
+            errorMessage = if (isEn) "Please enter a valid 10-digit mobile number." else "कृपया एक वैध 10-अंकों का मोबाइल नंबर दर्ज करें।"
         } else if (trimmedPassword.isEmpty()) {
-            errorMessage = "कृपया अपना पासवर्ड दर्ज करें।"
+            errorMessage = if (isEn) "Please enter your password." else "कृपया अपना पासवर्ड दर्ज करें।"
         } else {
             errorMessage = null
             successMessage = null
@@ -150,15 +155,15 @@ fun LoginScreen(
                             }
                     } else {
                         isAuthenticating = false
-                        errorMessage = "त्रुटि: प्रमाणीकरण विफल रहा।"
+                        errorMessage = if (isEn) "Error: Authentication failed." else "त्रुटि: प्रमाणीकरण विफल रहा।"
                     }
                 }
                 .addOnFailureListener { exception ->
                     isAuthenticating = false
                     errorMessage = when (exception) {
-                        is FirebaseAuthInvalidUserException -> "यह मोबाइल नंबर पंजीकृत नहीं है।"
-                        is FirebaseAuthInvalidCredentialsException -> "पासवर्ड गलत है। कृपया पुनः प्रयास करें।"
-                        else -> "लॉगिन विफल: ${exception.localizedMessage ?: "नेटवर्क समस्या, पुनः प्रयास करें"}"
+                        is FirebaseAuthInvalidUserException -> if (isEn) "This mobile number is not registered." else "यह मोबाइल नंबर पंजीकृत नहीं है।"
+                        is FirebaseAuthInvalidCredentialsException -> if (isEn) "Incorrect password. Please try again." else "पासवर्ड गलत है। कृपया पुनः प्रयास करें।"
+                        else -> if (isEn) "Login failed: ${exception.localizedMessage ?: "Network issue, try again"}" else "लॉगिन विफल: ${exception.localizedMessage ?: "नेटवर्क समस्या, पुनः प्रयास करें"}"
                     }
                 }
         }
@@ -172,13 +177,13 @@ fun LoginScreen(
         val trimmedConfirmPassword = regConfirmPassword.trim()
 
         if (trimmedName.isEmpty()) {
-            errorMessage = "कृपया अपना पूरा नाम दर्ज करें।"
+            errorMessage = if (isEn) "Please enter your full name." else "कृपया अपना पूरा नाम दर्ज करें।"
         } else if (trimmedMobile.length < 10) {
-            errorMessage = "कृपया वैध 10-अंकों का मोबाइल नंबर दर्ज करें।"
+            errorMessage = if (isEn) "Please enter a valid 10-digit mobile number." else "कृपया वैध 10-अंकों का मोबाइल नंबर दर्ज करें।"
         } else if (trimmedPassword.length < 6) {
-            errorMessage = "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
+            errorMessage = if (isEn) "Password must be at least 6 characters." else "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
         } else if (trimmedPassword != trimmedConfirmPassword) {
-            errorMessage = "पासवर्ड मेल नहीं खाते हैं।"
+            errorMessage = if (isEn) "Passwords do not match." else "पासवर्ड मेल नहीं खाते हैं।"
         } else {
             errorMessage = null
             successMessage = null
@@ -230,14 +235,14 @@ fun LoginScreen(
                             }
                     } else {
                         isAuthenticating = false
-                        errorMessage = "रजिस्ट्रेशन विफल रहा।"
+                        errorMessage = if (isEn) "Registration failed." else "रजिस्ट्रेशन विफल रहा।"
                     }
                 }
                 .addOnFailureListener { exception ->
                     isAuthenticating = false
                     errorMessage = when (exception) {
-                        is FirebaseAuthUserCollisionException -> "यह मोबाइल नंबर पहले से ही पंजीकृत है।"
-                        else -> "रजिस्ट्रेशन विफल: ${exception.localizedMessage ?: "नेटवर्क समस्या"}"
+                        is FirebaseAuthUserCollisionException -> if (isEn) "This mobile number is already registered." else "यह मोबाइल नंबर पहले से ही पंजीकृत है।"
+                        else -> if (isEn) "Registration failed: ${exception.localizedMessage ?: "Network issue"}" else "रजिस्ट्रेशन विफल: ${exception.localizedMessage ?: "नेटवर्क समस्या"}"
                     }
                 }
         }
@@ -251,13 +256,13 @@ fun LoginScreen(
         val trimmedConfirmPassword = fpConfirmPassword.trim()
 
         if (trimmedName.isEmpty()) {
-            errorMessage = "कृपया अपना पंजीकृत पूरा नाम दर्ज करें।"
+            errorMessage = if (isEn) "Please enter your registered full name." else "कृपया अपना पंजीकृत पूरा नाम दर्ज करें।"
         } else if (trimmedMobile.length < 10) {
-            errorMessage = "कृपया वैध 10-अंकों का मोबाइल नंबर दर्ज करें।"
+            errorMessage = if (isEn) "Please enter a valid 10-digit mobile number." else "कृपया वैध 10-अंकों का मोबाइल नंबर दर्ज करें।"
         } else if (trimmedPassword.length < 6) {
-            errorMessage = "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
+            errorMessage = if (isEn) "Password must be at least 6 characters." else "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
         } else if (trimmedPassword != trimmedConfirmPassword) {
-            errorMessage = "पासवर्ड मेल नहीं खाते हैं।"
+            errorMessage = if (isEn) "Passwords do not match." else "पासवर्ड मेल नहीं खाते हैं।"
         } else {
             errorMessage = null
             successMessage = null
@@ -284,7 +289,7 @@ fun LoginScreen(
                             withContext(Dispatchers.Main) {
                                 isAuthenticating = false
                                 errorMessage = null
-                                successMessage = "पासवर्ड सफलतापूर्वक बदल दिया गया है! कृपया नए पासवर्ड के साथ लॉगिन करें।"
+                                successMessage = if (isEn) "Password changed successfully! Please login with your new password." else "पासवर्ड सफलतापूर्वक बदल दिया गया है! कृपया नए पासवर्ड के साथ लॉगिन करें।"
                                 // Reset fp states and switch to sign in
                                 fpName = ""
                                 fpMobile = ""
@@ -295,13 +300,18 @@ fun LoginScreen(
                                 currentMode = AuthMode.SIGN_IN
                             }
                         } else {
-                            val errorResponseMsg = try {
+                            val rawMsg = try {
                                 val errJson = JSONObject(responseBody)
                                 errJson.optJSONObject("error")?.optString("message")
                                     ?: errJson.optString("message")
                             } catch (e: Exception) {
                                 null
-                            } ?: "विवरण मेल नहीं खाते हैं। कृपया अपना पंजीकृत नाम और मोबाइल सही दर्ज करें।"
+                            }
+                            val errorResponseMsg = if (rawMsg != null) {
+                                rawMsg
+                            } else {
+                                if (isEn) "Details do not match. Please verify your registered name and mobile number." else "विवरण मेल नहीं खाते हैं। कृपया अपना पंजीकृत नाम और मोबाइल सही दर्ज करें।"
+                            }
 
                             withContext(Dispatchers.Main) {
                                 isAuthenticating = false
@@ -313,7 +323,7 @@ fun LoginScreen(
                     e.printStackTrace()
                     withContext(Dispatchers.Main) {
                         isAuthenticating = false
-                        errorMessage = "संजाल त्रुटि: कृपया इंटरनेट कनेक्शन की जांच करें।"
+                        errorMessage = if (isEn) "Network error: Please check your internet connection." else "संजाल त्रुटि: कृपया इंटरनेट कनेक्शन की जांच करें।"
                     }
                 }
             }
@@ -349,480 +359,514 @@ fun LoginScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Branding Section
-            Text(
-                text = "मरुधरा एग्जाम",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 30.sp,
-                    color = Color.White
-                )
-            )
-            Text(
-                text = "MARUDHARA EXAM",
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Main Native Authentication Card
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                shape = RoundedCornerShape(20.dp),
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
+                    .widthIn(max = 480.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Beautiful Official Brand Logo Card
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    modifier = Modifier.size(96.dp)
                 ) {
-                    // Header titles depending on Mode
-                    val titleText = when (currentMode) {
-                        AuthMode.SIGN_IN -> "लॉगिन करें (Sign In)"
-                        AuthMode.SIGN_UP -> "नया अकाउंट (Register)"
-                        AuthMode.FORGOT_PASSWORD -> "पासवर्ड बदलें (Reset)"
-                    }
-                    val subtitleText = when (currentMode) {
-                        AuthMode.SIGN_IN -> "अपने पंजीकृत मोबाइल नंबर और पासवर्ड का उपयोग करें।"
-                        AuthMode.SIGN_UP -> "मरुधरा एग्जाम पर अपना नया विद्यार्थी अकाउंट बनाएं।"
-                        AuthMode.FORGOT_PASSWORD -> "अपने पंजीकृत नाम और मोबाइल नंबर से पासवर्ड बदलें।"
-                    }
-
-                    Text(
-                        text = titleText,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.align(Alignment.Start)
-                    )
-
-                    Text(
-                        text = subtitleText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .align(Alignment.Start)
-                            .padding(top = 4.dp, bottom = 24.dp)
-                    )
-
-                    // Error Notification
-                    if (errorMessage != null) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp),
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = com.example.R.drawable.marudhara_logo),
+                            contentDescription = "Marudhara Exam Logo",
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp)
-                        ) {
-                            Text(
-                                text = errorMessage!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(12.dp),
-                                textAlign = TextAlign.Start
-                            )
-                        }
+                                .fillMaxSize()
+                                .padding(8.dp)
+                        )
                     }
+                }
 
-                    // Success Notification
-                    if (successMessage != null) {
-                        Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(8.dp),
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Branding Section
+                Text(
+                    text = if (isEn) "Marudhara Exam" else "मरुधरा एग्जाम",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 30.sp,
+                        color = Color.White
+                    )
+                )
+                Text(
+                    text = "MARUDHARA EXAM",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Main Native Authentication Card
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Header titles depending on Mode
+                        val titleText = when (currentMode) {
+                            AuthMode.SIGN_IN -> if (isEn) "Sign In" else "लॉगिन करें (Sign In)"
+                            AuthMode.SIGN_UP -> if (isEn) "Register" else "नया अकाउंट (Register)"
+                            AuthMode.FORGOT_PASSWORD -> if (isEn) "Reset Password" else "पासवर्ड बदलें (Reset)"
+                        }
+                        val subtitleText = when (currentMode) {
+                            AuthMode.SIGN_IN -> if (isEn) "Use your registered mobile number and password." else "अपने पंजीकृत मोबाइल नंबर और पासवर्ड का उपयोग करें।"
+                            AuthMode.SIGN_UP -> if (isEn) "Create your new student account on Marudhara Exam." else "मरुधरा एग्जाम पर अपना नया विद्यार्थी अकाउंट बनाएं।"
+                            AuthMode.FORGOT_PASSWORD -> if (isEn) "Verify your registered details to reset your password." else "अपने पंजीकृत नाम और मोबाइल नंबर से पासवर्ड बदलें।"
+                        }
+
+                        Text(
+                            text = titleText,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.align(Alignment.Start)
+                        )
+
+                        Text(
+                            text = subtitleText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp)
-                        ) {
-                            Text(
-                                text = successMessage!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF047857),
-                                modifier = Modifier.padding(12.dp),
-                                textAlign = TextAlign.Start
-                            )
-                        }
-                    }
+                                .align(Alignment.Start)
+                                .padding(top = 4.dp, bottom = 24.dp)
+                        )
 
-                    // FORM FIELDS CONDITIONAL RENDER
-                    when (currentMode) {
-                        AuthMode.SIGN_IN -> {
-                            // Mobile Number Input
-                            OutlinedTextField(
-                                value = mobileNumber,
-                                onValueChange = { if (it.length <= 10) mobileNumber = it },
-                                label = { Text("मोबाइल नंबर (Mobile Number)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = "फ़ोन",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Password Input
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { password = it },
-                                label = { Text("पासवर्ड (Password)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = "पासवर्ड",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                                        Icon(
-                                            imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                            contentDescription = "पासवर्ड दिखाएं/छुपाएं"
-                                        )
-                                    }
-                                },
-                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Action Links Row (Remember Me and Forgot Password)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                        // Error Notification
+                        if (errorMessage != null) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { rememberMe = !rememberMe }
-                                ) {
-                                    Checkbox(
-                                        checked = rememberMe,
-                                        onCheckedChange = { rememberMe = it },
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = MaterialTheme.colorScheme.primary
-                                        )
-                                    )
-                                    Text(
-                                        text = "याद रखें",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                }
-
                                 Text(
-                                    text = "पासवर्ड भूल गए?",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.secondary
-                                    ),
-                                    modifier = Modifier.clickable {
-                                        errorMessage = null
-                                        successMessage = null
-                                        currentMode = AuthMode.FORGOT_PASSWORD
-                                    }
+                                    text = errorMessage!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(12.dp),
+                                    textAlign = TextAlign.Start
                                 )
                             }
                         }
 
-                        AuthMode.SIGN_UP -> {
-                            // Full Name Input
-                            OutlinedTextField(
-                                value = regName,
-                                onValueChange = { regName = it },
-                                label = { Text("पूरा नाम (Full Name)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = "नाम",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Mobile Number Input
-                            OutlinedTextField(
-                                value = regMobile,
-                                onValueChange = { if (it.length <= 10) regMobile = it },
-                                label = { Text("मोबाइल नंबर (Mobile Number)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = "फ़ोन",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Password Input
-                            OutlinedTextField(
-                                value = regPassword,
-                                onValueChange = { regPassword = it },
-                                label = { Text("पासवर्ड (Password)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = "पासवर्ड",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { isRegPasswordVisible = !isRegPasswordVisible }) {
-                                        Icon(
-                                            imageVector = if (isRegPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                            contentDescription = "पासवर्ड दिखाएं/छुपाएं"
-                                        )
-                                    }
-                                },
-                                visualTransformation = if (isRegPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Confirm Password Input
-                            OutlinedTextField(
-                                value = regConfirmPassword,
-                                onValueChange = { regConfirmPassword = it },
-                                label = { Text("पासवर्ड पुनः दर्ज करें (Confirm Password)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = "पासवर्ड पुनः दर्ज करें",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        // Success Notification
+                        if (successMessage != null) {
+                            Surface(
+                                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                            ) {
+                                Text(
+                                    text = successMessage!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF047857),
+                                    modifier = Modifier.padding(12.dp),
+                                    textAlign = TextAlign.Start
+                                )
+                            }
                         }
 
-                        AuthMode.FORGOT_PASSWORD -> {
-                            // Full Name Input
-                            OutlinedTextField(
-                                value = fpName,
-                                onValueChange = { fpName = it },
-                                label = { Text("पंजीकृत पूरा नाम (Registered Full Name)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = "नाम",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Mobile Number Input
-                            OutlinedTextField(
-                                value = fpMobile,
-                                onValueChange = { if (it.length <= 10) fpMobile = it },
-                                label = { Text("पंजीकृत मोबाइल (Registered Mobile)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = "फ़ोन",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // New Password Input
-                            OutlinedTextField(
-                                value = fpPassword,
-                                onValueChange = { fpPassword = it },
-                                label = { Text("नया पासवर्ड (New Password)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = "नया पासवर्ड",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { isFpPasswordVisible = !isFpPasswordVisible }) {
+                        // FORM FIELDS CONDITIONAL RENDER
+                        when (currentMode) {
+                            AuthMode.SIGN_IN -> {
+                                // Mobile Number Input
+                                OutlinedTextField(
+                                    value = mobileNumber,
+                                    onValueChange = { if (it.length <= 10) mobileNumber = it },
+                                    label = { Text(if (isEn) "Mobile Number" else "मोबाइल नंबर (Mobile Number)") },
+                                    leadingIcon = {
                                         Icon(
-                                            imageVector = if (isFpPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                            contentDescription = "पासवर्ड दिखाएं/छुपाएं"
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = "Phone",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Password Input
+                                OutlinedTextField(
+                                    value = password,
+                                    onValueChange = { password = it },
+                                    label = { Text(if (isEn) "Password" else "पासवर्ड (Password)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = "Password",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                            Icon(
+                                                imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                contentDescription = if (isEn) "Toggle password visibility" else "पासवर्ड दिखाएं/छुपाएं"
+                                            )
+                                        }
+                                    },
+                                    visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Action Links Row (Remember Me and Forgot Password)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.clickable { rememberMe = !rememberMe }
+                                    ) {
+                                        Checkbox(
+                                            checked = rememberMe,
+                                            onCheckedChange = { rememberMe = it },
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                        Text(
+                                            text = if (isEn) "Remember Me" else "याद रखें",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                         )
                                     }
-                                },
-                                visualTransformation = if (isFpPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
 
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Confirm New Password Input
-                            OutlinedTextField(
-                                value = fpConfirmPassword,
-                                onValueChange = { fpConfirmPassword = it },
-                                label = { Text("नया पासवर्ड पुनः दर्ज करें (Confirm Password)") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = "पासवर्ड पुनः दर्ज करें",
-                                        tint = MaterialTheme.colorScheme.primary
+                                    Text(
+                                        text = if (isEn) "Forgot Password?" else "पासवर्ड भूल गए?",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        ),
+                                        modifier = Modifier.clickable {
+                                            errorMessage = null
+                                            successMessage = null
+                                            currentMode = AuthMode.FORGOT_PASSWORD
+                                        }
                                     )
-                                },
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                                }
+                            }
+
+                            AuthMode.SIGN_UP -> {
+                                // Full Name Input
+                                OutlinedTextField(
+                                    value = regName,
+                                    onValueChange = { regName = it },
+                                    label = { Text(if (isEn) "Full Name" else "पूरा नाम (Full Name)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = "Name",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Mobile Number Input
+                                OutlinedTextField(
+                                    value = regMobile,
+                                    onValueChange = { if (it.length <= 10) regMobile = it },
+                                    label = { Text(if (isEn) "Mobile Number" else "मोबाइल नंबर (Mobile Number)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = "Phone",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Password Input
+                                OutlinedTextField(
+                                    value = regPassword,
+                                    onValueChange = { regPassword = it },
+                                    label = { Text(if (isEn) "Password" else "पासवर्ड (Password)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = "Password",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        IconButton(onClick = { isRegPasswordVisible = !isRegPasswordVisible }) {
+                                            Icon(
+                                                imageVector = if (isRegPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                contentDescription = if (isEn) "Toggle password visibility" else "पासवर्ड दिखाएं/छुपाएं"
+                                            )
+                                        }
+                                    },
+                                    visualTransformation = if (isRegPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Confirm Password Input
+                                OutlinedTextField(
+                                    value = regConfirmPassword,
+                                    onValueChange = { regConfirmPassword = it },
+                                    label = { Text(if (isEn) "Confirm Password" else "पासवर्ड पुनः दर्ज करें (Confirm Password)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = "Confirm Password",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            AuthMode.FORGOT_PASSWORD -> {
+                                // Full Name Input
+                                OutlinedTextField(
+                                    value = fpName,
+                                    onValueChange = { fpName = it },
+                                    label = { Text(if (isEn) "Registered Full Name" else "पंजीकृत पूरा नाम (Registered Full Name)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = "Name",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Mobile Number Input
+                                OutlinedTextField(
+                                    value = fpMobile,
+                                    onValueChange = { if (it.length <= 10) fpMobile = it },
+                                    label = { Text(if (isEn) "Registered Mobile" else "पंजीकृत मोबाइल (Registered Mobile)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = "Phone",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // New Password Input
+                                OutlinedTextField(
+                                    value = fpPassword,
+                                    onValueChange = { fpPassword = it },
+                                    label = { Text(if (isEn) "New Password" else "नया पासवर्ड (New Password)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = "New Password",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        IconButton(onClick = { isFpPasswordVisible = !isFpPasswordVisible }) {
+                                            Icon(
+                                                imageVector = if (isFpPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                contentDescription = if (isEn) "Toggle password visibility" else "पासवर्ड दिखाएं/छुपाएं"
+                                            )
+                                        }
+                                    },
+                                    visualTransformation = if (isFpPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Confirm New Password Input
+                                OutlinedTextField(
+                                    value = fpConfirmPassword,
+                                    onValueChange = { fpConfirmPassword = it },
+                                    label = { Text(if (isEn) "Confirm New Password" else "नया पासवर्ड पुनः दर्ज करें (Confirm Password)") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = "Confirm Password",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // ACTION BUTTON
+                        Button(
+                            onClick = {
+                                when (currentMode) {
+                                    AuthMode.SIGN_IN -> handleSignIn()
+                                    AuthMode.SIGN_UP -> handleSignUp()
+                                    AuthMode.FORGOT_PASSWORD -> handleForgotPassword()
+                                }
+                            },
+                            enabled = !isAuthenticating,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                        ) {
+                            if (isAuthenticating) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                val buttonText = when (currentMode) {
+                                    AuthMode.SIGN_IN -> if (isEn) "Secure Login" else "सुरक्षित लॉगिन (Login)"
+                                    AuthMode.SIGN_UP -> if (isEn) "Create Account" else "नया अकाउंट बनाएं (Register)"
+                                    AuthMode.FORGOT_PASSWORD -> if (isEn) "Reset Password" else "पासवर्ड बदलें (Reset)"
+                                }
+                                Text(
+                                    text = buttonText,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                    // ACTION BUTTON
-                    Button(
-                        onClick = {
-                            when (currentMode) {
-                                AuthMode.SIGN_IN -> handleSignIn()
-                                AuthMode.SIGN_UP -> handleSignUp()
-                                AuthMode.FORGOT_PASSWORD -> handleForgotPassword()
-                            }
-                        },
-                        enabled = !isAuthenticating,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White
+                // Footer Switch Mode section
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val footerPreText = when (currentMode) {
+                        AuthMode.SIGN_IN -> if (isEn) "Don't have an account? " else "नया छात्र अकाउंट बनाना है? "
+                        AuthMode.SIGN_UP -> if (isEn) "Already have an account? " else "पहले से अकाउंट बना हुआ है? "
+                        AuthMode.FORGOT_PASSWORD -> if (isEn) "Go back to Login? " else "वापस लॉगिन स्क्रीन पर जाएं? "
+                    }
+                    val footerActionText = when (currentMode) {
+                        AuthMode.SIGN_IN -> if (isEn) "Register Here" else "यहाँ रजिस्टर करें"
+                        AuthMode.SIGN_UP -> if (isEn) "Login Here" else "यहाँ लॉगिन करें"
+                        AuthMode.FORGOT_PASSWORD -> if (isEn) "Click Here" else "यहाँ क्लिक करें"
+                    }
+
+                    Text(
+                        text = footerPreText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = footerActionText,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-                    ) {
-                        if (isAuthenticating) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            val buttonText = when (currentMode) {
-                                AuthMode.SIGN_IN -> "सुरक्षित लॉगिन (Login)"
-                                AuthMode.SIGN_UP -> "नया अकाउंट बनाएं (Register)"
-                                AuthMode.FORGOT_PASSWORD -> "पासवर्ड बदलें (Reset)"
+                        modifier = Modifier.clickable {
+                            errorMessage = null
+                            successMessage = null
+                            currentMode = when (currentMode) {
+                                AuthMode.SIGN_IN -> AuthMode.SIGN_UP
+                                AuthMode.SIGN_UP -> AuthMode.SIGN_IN
+                                AuthMode.FORGOT_PASSWORD -> AuthMode.SIGN_IN
                             }
-                            Text(
-                                text = buttonText,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
                         }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Footer Switch Mode section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val footerPreText = when (currentMode) {
-                    AuthMode.SIGN_IN -> "नया छात्र अकाउंट बनाना है? "
-                    AuthMode.SIGN_UP -> "पहले से अकाउंट बना हुआ है? "
-                    AuthMode.FORGOT_PASSWORD -> "वापस लॉगिन स्क्रीन पर जाएं? "
-                }
-                val footerActionText = when (currentMode) {
-                    AuthMode.SIGN_IN -> "यहाँ रजिस्टर करें"
-                    AuthMode.SIGN_UP -> "यहाँ लॉगिन करें"
-                    AuthMode.FORGOT_PASSWORD -> "यहाँ क्लिक करें"
+                    )
                 }
 
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Brand Disclaimer
                 Text(
-                    text = footerPreText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = footerActionText,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary
+                    text = if (isEn) {
+                        "Official Marudhara Exam Companion App\n100% Secure & Certified Authentication"
+                    } else {
+                        "आधिकारिक मरुधरा एग्जाम Companion App\n100% सुरक्षित एवं प्रमाणित प्रमाणीकरण"
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 16.sp
                     ),
-                    modifier = Modifier.clickable {
-                        errorMessage = null
-                        successMessage = null
-                        currentMode = when (currentMode) {
-                            AuthMode.SIGN_IN -> AuthMode.SIGN_UP
-                            AuthMode.SIGN_UP -> AuthMode.SIGN_IN
-                            AuthMode.FORGOT_PASSWORD -> AuthMode.SIGN_IN
-                        }
-                    }
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Brand Disclaimer
-            Text(
-                text = "आधिकारिक मरुधरा एग्जाम Competition App\n100% सुरक्षित एवं प्रमाणित प्रमाणीकरण",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                    textAlign = TextAlign.Center,
-                    lineHeight = 16.sp
-                ),
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
         }
     }
 }

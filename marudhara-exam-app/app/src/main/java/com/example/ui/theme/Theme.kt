@@ -11,15 +11,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme =
-  darkColorScheme(
-    primary = MarudharaPrimaryDark,
-    secondary = MarudharaSecondaryDark,
-    background = MarudharaBackgroundDark,
-    surface = MarudharaSurfaceDark,
-    onPrimary = MarudharaTextDark,
-    onSecondary = MarudharaTextDark,
-    onBackground = MarudharaTextDark,
-    onSurface = MarudharaTextDark
+  lightColorScheme(
+    primary = MarudharaPrimary,
+    secondary = MarudharaSecondary,
+    background = MarudharaBackgroundLight,
+    surface = MarudharaSurfaceLight,
+    onPrimary = androidx.compose.ui.graphics.Color.White,
+    onSecondary = androidx.compose.ui.graphics.Color.White,
+    onBackground = MarudharaTextPrimary,
+    onSurface = MarudharaTextPrimary
   )
 
 private val LightColorScheme =
@@ -36,7 +36,7 @@ private val LightColorScheme =
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = false, // Constrain to light mode for the premium consistent brand theme
+  darkTheme: Boolean = isSystemInDarkTheme(),
   // Dynamic color is turned off by default to preserve premium brand coloring
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,

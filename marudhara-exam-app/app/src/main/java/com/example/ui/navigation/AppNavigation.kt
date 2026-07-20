@@ -9,9 +9,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
-import com.example.MainActivity
 import com.example.data.store.SessionManager
 import com.example.ui.screens.*
 import kotlinx.coroutines.launch
@@ -23,24 +20,6 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController()
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val activity = context as? MainActivity
-
-    LaunchedEffect(activity) {
-        // Cold start deep link
-        val initialUrl = activity?.intent?.getStringExtra("target_url")
-        if (!initialUrl.isNullOrEmpty()) {
-            activity.intent.removeExtra("target_url")
-            navController.navigate(Screen.WebView.createRoute("नवीनतम अपडेट", initialUrl))
-        }
-        
-        // Hot start deep link
-        activity?.deepLinkFlow?.collect { url ->
-            if (url.isNotEmpty()) {
-                navController.navigate(Screen.WebView.createRoute("नवीनतम अपडेट", url))
-            }
-        }
-    }
 
     NavHost(
         navController = navController,
@@ -97,7 +76,7 @@ fun AppNavigation(
                         sessionManager.clearSession()
                     }
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(Screen.Home.route) { inclusive = true }
                     }
                 },
                 onNavigateToWeb = { title, url ->

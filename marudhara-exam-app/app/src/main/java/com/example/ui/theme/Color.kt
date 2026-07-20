@@ -2,18 +2,19 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Marudhara Exam Brand Palette
-val MarudharaPrimary = Color(0xFF002B5B) // Deep Navy Blue
-val MarudharaSecondary = Color(0xFFF59E0B) // Amber Orange
-val MarudharaAccent = Color(0xFF0F172A) // Slate Dark Blue
-val MarudharaBackgroundLight = Color(0xFFF8FAFC) // Slate-colored soft white background
-val MarudharaSurfaceLight = Color(0xFFFFFFFF) // Clean White surface
-val MarudharaTextPrimary = Color(0xFF0F172A) // Slate-900 for high readability
+// Marudhara Exam Premium Light Cream Palette (Senior Designer Redesign)
+val MarudharaPrimary = Color(0xFF0F2E59) // Premium Navy Blue Accent
+val MarudharaSecondary = Color(0xFFD4AF37) // Premium Golden Accent
+val MarudharaAccent = Color(0xFFD4AF37) // Golden Accent
+val MarudharaBackgroundLight = Color(0xFFF8F5EE) // Soft Cream Primary Background
+val MarudharaSurfaceLight = Color(0xFFFFFFFF) // Warm White / White Surfaces (Cards)
+val MarudharaTextPrimary = Color(0xFF222222) // Dark Charcoal Text
 
-// Dark Mode Palette
-val MarudharaPrimaryDark = Color(0xFF3B82F6) // Brighter blue for dark mode visibility
-val MarudharaSecondaryDark = Color(0xFFFBBF24) // Brighter amber for dark mode contrast
-val MarudharaBackgroundDark = Color(0xFF0F172A) // Dark slate background
-val MarudharaSurfaceDark = Color(0xFF1E293B) // Darker slate surface
-val MarudharaTextDark = Color(0xFFF8FAFC) // Light gray for reading
+// Avoid dark backgrounds even in dark mode for a consistent premium education theme
+val MarudharaPrimaryDark = Color(0xFF0F2E59)
+val MarudharaSecondaryDark = Color(0xFFD4AF37)
+val MarudharaBackgroundDark = Color(0xFFF8F5EE)
+val MarudharaSurfaceDark = Color(0xFFFFFFFF)
+val MarudharaTextDark = Color(0xFF222222)
+
 

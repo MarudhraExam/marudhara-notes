@@ -28,8 +28,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.data.store.SessionManager
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import androidx.compose.foundation.clickable
 
 class AndroidDownloadInterface(
     private val context: Context,
@@ -74,77 +72,19 @@ fun ProfileScreen(
     val studentMobile by sessionManager.mobileNumberFlow.collectAsState(initial = null)
     val studentName by sessionManager.studentNameFlow.collectAsState(initial = null)
     val savedPassword by sessionManager.savedPasswordFlow.collectAsState(initial = null)
+    val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
+    val isEn = appLanguage == "en"
 
     // Intercept Back Pressed to go back in WebView history
     BackHandler(enabled = webView?.canGoBack() == true) {
         webView?.goBack()
     }
 
-    val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
-    val coroutineScope = rememberCoroutineScope()
-
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Compact Language Selector Bar
-        Surface(
-            tonalElevation = 2.dp,
-            shadowElevation = 1.dp,
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (appLanguage == "en") "Language / भाषा" else "भाषा / Language",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "English",
-                        color = if (appLanguage == "en") MaterialTheme.colorScheme.primary else Color.Gray,
-                        fontWeight = if (appLanguage == "en") FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .clickable {
-                                coroutineScope.launch {
-                                    sessionManager.saveLanguage("en")
-                                }
-                            }
-                            .padding(4.dp)
-                    )
-                    Text(
-                        text = "हिन्दी",
-                        color = if (appLanguage == "hi") MaterialTheme.colorScheme.primary else Color.Gray,
-                        fontWeight = if (appLanguage == "hi") FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .clickable {
-                                coroutineScope.launch {
-                                    sessionManager.saveLanguage("hi")
-                                }
-                            }
-                            .padding(4.dp)
-                    )
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
         // Native WebView Wrapper
         AndroidView(
             factory = { ctx ->
@@ -169,9 +109,14 @@ fun ProfileScreen(
                     settings.allowContentAccess = true
                     settings.cacheMode = WebSettings.LOAD_DEFAULT
 
-                    // Append Custom App tag to User-Agent for easy backend detection
+                    // Strip Android WebView signature markers (; wv and Version/4.0) to trick Razorpay into treating the app shell as Google Chrome Mobile.
+                    // This unlocks all UPI payment apps (Google Pay, PhonePe, Paytm, BHIM, etc.).
                     val originalUA = settings.userAgentString
-                    settings.userAgentString = "$originalUA MarudharaExamAndroidApp"
+                    val chromeUA = originalUA
+                        .replace("; wv", "")
+                        .replace("Version/4.0 ", "")
+                        .replace("Version/4.0", "")
+                    settings.userAgentString = "$chromeUA MarudharaExamAndroidApp"
 
                     // Enable cookie synchronization for persistent login sessions
                     val cookieManager = CookieManager.getInstance()
@@ -187,7 +132,7 @@ fun ProfileScreen(
                             (ctx as? android.app.Activity)?.runOnUiThread {
                                 try {
                                     val request = DownloadManager.Request(Uri.parse(url)).apply {
-                                        setTitle("मार्कशीट एवं प्रश्न पत्र डाउनलोड")
+                                        setTitle(if (isEn) "Download Marksheet & Question Paper" else "मार्कशीट एवं प्रश्न पत्र डाउनलोड")
                                         setDescription("Marudhara Exam - $filename")
                                         setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                                         setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
@@ -197,10 +142,10 @@ fun ProfileScreen(
                                     }
                                     val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                                     manager.enqueue(request)
-                                    Toast.makeText(ctx, "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(ctx, if (isEn) "Download started. Please check notifications." else "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
                                 } catch (e: Exception) {
                                     e.printStackTrace()
-                                    Toast.makeText(ctx, "डाउनलोड विफल रहा: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(ctx, (if (isEn) "Download failed: " else "डाउनलोड विफल रहा: ") + e.localizedMessage, Toast.LENGTH_LONG).show()
                                 }
                             }
                         },
@@ -220,14 +165,52 @@ fun ProfileScreen(
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                             val requestUrl = request?.url?.toString() ?: ""
                             
-                            // Intercept PDF files to show or handle natively
+                            // 1. Intercept custom schemes (UPI, deep links) before isForMainFrame or anything else to handle Razorpay/UPI app launches.
+                            if (!requestUrl.startsWith("http://", ignoreCase = true) && 
+                                !requestUrl.startsWith("https://", ignoreCase = true)) {
+                                try {
+                                    val intent = if (requestUrl.startsWith("intent://", ignoreCase = true)) {
+                                        Intent.parseUri(requestUrl, Intent.URI_INTENT_SCHEME)
+                                    } else {
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(requestUrl))
+                                    }
+
+                                    if (intent != null) {
+                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        val pm = ctx.packageManager
+                                        val info = pm.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+                                        if (info != null) {
+                                            ctx.startActivity(intent)
+                                        } else {
+                                            // Handle intent fallback or redirect to Play Store
+                                            val fallbackUrl = intent.getStringExtra("browser_fallback_url")
+                                            if (!fallbackUrl.isNullOrEmpty()) {
+                                                view?.loadUrl(fallbackUrl)
+                                            } else {
+                                                val packageName = intent.`package`
+                                                if (!packageName.isNullOrEmpty()) {
+                                                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                    })
+                                                }
+                                            }
+                                        }
+                                        return true
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                                return true // Return true to consume and prevent webview crash/error page
+                            }
+
+                            // 2. Intercept PDF files to show or handle natively
                             if (requestUrl.endsWith(".pdf", ignoreCase = true) || 
                                 requestUrl.contains("/pdfs/", ignoreCase = true) || 
                                 requestUrl.contains(".pdf?", ignoreCase = true)) {
                                 val filename = "Marudhara_Document_${System.currentTimeMillis()}.pdf"
                                 try {
                                     val req = DownloadManager.Request(Uri.parse(requestUrl)).apply {
-                                        setTitle("दस्तावेज़ डाउनलोड")
+                                        setTitle(if (isEn) "Download Document" else "दस्तावेज़ डाउनलोड")
                                         setDescription("Marudhara Exam - $filename")
                                         setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                                         setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
@@ -237,7 +220,7 @@ fun ProfileScreen(
                                     }
                                     val manager = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                                     manager.enqueue(req)
-                                    Toast.makeText(ctx, "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(ctx, if (isEn) "Download started. Please check notifications." else "डाउनलोड शुरू हो गया है। कृपया नोटिफिकेशन देखें।", Toast.LENGTH_LONG).show()
                                 } catch (e: Exception) {
                                     e.printStackTrace()
                                 }
@@ -251,11 +234,13 @@ fun ProfileScreen(
                             super.onPageStarted(view, url, favicon)
                             isLoading = true
                             hasError = false
+                            view?.evaluateJavascript(GLOBAL_HEADER_HIDE_SCRIPT, null)
                         }
 
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             CookieManager.getInstance().flush()
+                            view?.evaluateJavascript(GLOBAL_HEADER_HIDE_SCRIPT, null)
 
                             // Hide header, navigation bar and redundant action elements from Profile dashboard
                             val cssHideScript = """
@@ -263,249 +248,17 @@ fun ProfileScreen(
                                     try {
                                         const style = document.createElement('style');
                                         style.innerHTML = `
-                                            header, footer, nav, .top-bar, .top-actions, .mobile-menu-btn {
+                                            header, footer, nav, .top-bar, .top-actions, .mobile-menu-btn, .section, #statusBar {
                                                 display: none !important;
                                             }
-                                            html, body {
-                                                max-width: 100vw !important;
-                                                overflow-x: hidden !important;
-                                                box-sizing: border-box !important;
-                                                background-color: #F8FAFC !important;
-                                                font-family: system-ui, -apple-system, sans-serif !important;
-                                                color: #0F172A !important;
-                                                margin: 0 !important;
-                                                padding: 0 !important;
-                                            }
-                                            *, *:before, *:after {
-                                                box-sizing: inherit !important;
-                                            }
                                             .page-shell {
-                                                padding: 16px 12px 32px !important;
-                                                max-width: 100vw !important;
-                                                overflow-x: hidden !important;
-                                                box-sizing: border-box !important;
-                                            }
-                                            #statusBar {
-                                                background-color: #EFF6FF !important;
-                                                color: #1D4ED8 !important;
-                                                border: 1px solid #DBEAFE !important;
-                                                border-radius: 10px !important;
-                                                padding: 10px 14px !important;
-                                                font-size: 12px !important;
-                                                font-weight: 600 !important;
-                                                margin-bottom: 16px !important;
-                                                max-width: 100% !important;
-                                                box-sizing: border-box !important;
-                                            }
-                                            .profile-card {
-                                                display: flex !important;
-                                                flex-wrap: wrap !important;
-                                                align-items: center !important;
-                                                background: linear-gradient(135deg, #002B5B 0%, #004085 100%) !important;
-                                                border-radius: 16px !important;
-                                                padding: 18px 20px !important;
-                                                margin-bottom: 20px !important;
-                                                color: #FFFFFF !important;
-                                                box-shadow: 0 4px 12px rgba(0, 43, 91, 0.15) !important;
-                                                max-width: 100% !important;
-                                                box-sizing: border-box !important;
-                                            }
-                                            .profile-photo, #profileInitial {
-                                                width: 56px !important;
-                                                height: 56px !important;
-                                                background-color: #F59E0B !important;
-                                                color: #002B5B !important;
-                                                font-size: 22px !important;
-                                                font-weight: 800 !important;
-                                                border-radius: 50% !important;
-                                                display: flex !important;
-                                                align-items: center !important;
-                                                justify-content: center !important;
-                                                margin-right: 16px !important;
-                                                border: 2px solid #FFFFFF !important;
-                                                flex-shrink: 0 !important;
-                                            }
-                                            .profile-details {
-                                                flex: 1 !important;
-                                                min-width: 200px !important;
-                                                word-break: break-word !important;
-                                                box-sizing: border-box !important;
-                                            }
-                                            .profile-details h2, #profileName {
-                                                font-size: 18px !important;
-                                                font-weight: bold !important;
-                                                color: #FFFFFF !important;
-                                                margin: 0 0 2px 0 !important;
-                                            }
-                                            .profile-details p, #profileMobile {
-                                                font-size: 13px !important;
-                                                color: rgba(255, 255, 255, 0.85) !important;
-                                                margin: 0 !important;
-                                            }
-                                            .section {
-                                                background: #FFFFFF !important;
-                                                border-radius: 12px !important;
-                                                padding: 14px 16px !important;
-                                                margin-bottom: 16px !important;
-                                                box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
-                                                border: 1px solid #E2E8F0 !important;
-                                                max-width: 100% !important;
-                                                box-sizing: border-box !important;
-                                                overflow-x: hidden !important;
-                                            }
-                                            .section h2 {
-                                                font-size: 14px !important;
-                                                font-weight: 800 !important;
-                                                color: #002B5B !important;
-                                                margin: 0 0 12px 0 !important;
-                                                border-bottom: 2px solid #F1F5F9 !important;
-                                                padding-bottom: 6px !important;
-                                            }
-                                            .table-wrap {
-                                                overflow-x: auto !important;
-                                                width: 100% !important;
-                                                box-sizing: border-box !important;
-                                                margin: 0 !important;
-                                                padding: 0 !important;
-                                                -webkit-overflow-scrolling: touch !important;
-                                            }
-                                            table {
-                                                width: 100% !important;
-                                                border-collapse: collapse !important;
-                                                table-layout: fixed !important;
-                                            }
-                                            th {
-                                                background-color: #F8FAFC !important;
-                                                color: #64748B !important;
-                                                font-size: 10px !important;
-                                                text-transform: uppercase !important;
-                                                font-weight: bold !important;
-                                                padding: 8px !important;
-                                                text-align: left !important;
-                                                border-bottom: 1px solid #E2E8F0 !important;
-                                                word-wrap: break-word !important;
-                                                word-break: break-word !important;
-                                            }
-                                            td {
-                                                padding: 10px 8px !important;
-                                                font-size: 11px !important;
-                                                color: #334155 !important;
-                                                border-bottom: 1px solid #F1F5F9 !important;
-                                                vertical-align: middle !important;
-                                                word-wrap: break-word !important;
-                                                word-break: break-word !important;
-                                            }
-                                            tr:last-child td {
-                                                border-bottom: none !important;
-                                            }
-                                            .badge {
-                                                padding: 3px 6px !important;
-                                                border-radius: 10px !important;
-                                                font-size: 9px !important;
-                                                font-weight: bold !important;
-                                            }
-                                            .badge.paid {
-                                                background-color: #D1FAE5 !important;
-                                                color: #065F46 !important;
-                                            }
-                                            .button-primary, button.download-btn, a.download-btn {
-                                                background-color: #002B5B !important;
-                                                color: #FFFFFF !important;
-                                                border-radius: 6px !important;
-                                                padding: 6px 10px !important;
-                                                font-size: 10px !important;
-                                                font-weight: bold !important;
-                                                border: none !important;
-                                                cursor: pointer !important;
-                                                text-decoration: none !important;
-                                                display: inline-flex !important;
-                                                align-items: center !important;
-                                                gap: 4px !important;
-                                            }
-                                            .empty-state {
-                                                padding: 16px !important;
-                                                text-align: center !important;
-                                                color: #94A3B8 !important;
-                                                font-size: 12px !important;
+                                                padding: 8px 12px 24px !important;
                                             }
                                             #loginOverlay, .nav-login, .login-btn {
                                                 display: none !important;
                                             }
-                                            
-                                            /* Mobile Responsive Conversions for tables to Cards */
-                                            @media screen and (max-width: 600px) {
-                                                table, thead, tbody, th, td, tr {
-                                                    display: block !important;
-                                                    width: 100% !important;
-                                                }
-                                                thead {
-                                                    display: none !important;
-                                                }
-                                                tr {
-                                                    margin-bottom: 12px !important;
-                                                    border: 1px solid #E2E8F0 !important;
-                                                    border-radius: 8px !important;
-                                                    padding: 8px !important;
-                                                    background: #FFFFFF !important;
-                                                    box-shadow: 0 1px 3px rgba(0,0,0,0.02) !important;
-                                                }
-                                                td {
-                                                    text-align: right !important;
-                                                    padding: 8px 6px !important;
-                                                    border-bottom: 1px solid #F1F5F9 !important;
-                                                    display: flex !important;
-                                                    justify-content: space-between !important;
-                                                    align-items: center !important;
-                                                    min-height: 36px !important;
-                                                }
-                                                td:last-child {
-                                                    border-bottom: none !important;
-                                                }
-                                                td::before {
-                                                    content: attr(data-label) !important;
-                                                    float: left !important;
-                                                    font-weight: bold !important;
-                                                    color: #64748B !important;
-                                                    font-size: 11px !important;
-                                                }
-                                            }
                                         `;
                                         document.head.appendChild(style);
-
-                                        // Dynamically label table cells and add bilingual actions for Purchased Categories and Completed Mock Tests
-                                        const tables = document.querySelectorAll('table');
-                                        tables.forEach((table, tableIdx) => {
-                                            const headers = Array.from(table.querySelectorAll('th')).map(th => th.textContent.trim());
-                                            const rows = table.querySelectorAll('tbody tr');
-                                            rows.forEach(row => {
-                                                const cells = row.querySelectorAll('td');
-                                                cells.forEach((cell, idx) => {
-                                                    if (headers[idx]) {
-                                                        cell.setAttribute('data-label', headers[idx]);
-                                                    }
-                                                });
-                                                
-                                                const heading = table.previousElementSibling?.textContent || '';
-                                                const isPurchased = heading.toLowerCase().includes('package') || heading.toLowerCase().includes('purchased') || heading.includes('पैकेज') || heading.includes('श्रेणी') || tableIdx === 0;
-                                                const isHistory = heading.toLowerCase().includes('history') || heading.toLowerCase().includes('completed') || heading.includes('इतिहास') || heading.includes('परिणाम') || tableIdx === 1;
-
-                                                const actions = row.querySelectorAll('a, button');
-                                                actions.forEach(action => {
-                                                    const text = action.textContent.toLowerCase();
-                                                    if (isPurchased) {
-                                                        if (text.includes('view') || text.includes('start') || text.includes('attempt') || text.includes('देखें') || text.includes('शुरू')) {
-                                                            action.innerHTML = 'View Test / टेस्ट देखें ◀';
-                                                            action.classList.add('action-btn');
-                                                        }
-                                                    } else if (isHistory) {
-                                                        if (text.includes('result') || text.includes('marks') || text.includes('score') || text.includes('pdf') || text.includes('डाउनलोड') || text.includes('अंक')) {
-                                                            action.innerHTML = 'View Result / परिणाम देखें 📊';
-                                                            action.classList.add('action-btn');
-                                                        }
-                                                    }
-                                                });
-                                            });
-                                        });
 
                                         // Overwrite secure PDF download globally
                                         window.downloadSecureQuestionPaperPdf = function(mockId, attemptId) {
@@ -527,6 +280,62 @@ fun ProfileScreen(
                                                 }
                                             });
                                         }
+
+                                        // Dynamically append Logout button below Profile card in page shell
+                                        const appendLogout = () => {
+                                            if (document.getElementById('native-logout-appended')) return;
+
+                                            const shell = document.querySelector('.page-shell');
+                                            if (shell) {
+                                                const containerItem = document.createElement('div');
+                                                containerItem.id = 'native-logout-appended';
+                                                containerItem.style.setProperty('background', '#fff', 'important');
+                                                containerItem.style.setProperty('border', '1px solid rgba(35,49,79,0.1)', 'important');
+                                                containerItem.style.setProperty('border-radius', '18px', 'important');
+                                                containerItem.style.setProperty('padding', '4px', 'important');
+                                                containerItem.style.setProperty('margin-top', '16px', 'important');
+                                                containerItem.style.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.02)', 'important');
+
+                                                const logoutBtn = document.createElement('a');
+                                                logoutBtn.href = '#';
+                                                logoutBtn.className = 'logout-btn-link';
+                                                logoutBtn.innerHTML = '🚪 Logout';
+                                                
+                                                logoutBtn.style.setProperty('display', 'flex', 'important');
+                                                logoutBtn.style.setProperty('align-items', 'center', 'important');
+                                                logoutBtn.style.setProperty('color', '#d32f2f', 'important');
+                                                logoutBtn.style.setProperty('font-weight', '700', 'important');
+                                                logoutBtn.style.setProperty('font-size', '16px', 'important');
+                                                logoutBtn.style.setProperty('padding', '16px 20px', 'important');
+                                                logoutBtn.style.setProperty('text-decoration', 'none', 'important');
+                                                logoutBtn.style.setProperty('border-radius', '14px', 'important');
+                                                logoutBtn.style.setProperty('cursor', 'pointer', 'important');
+                                                logoutBtn.style.setProperty('transition', 'background-color 0.2s ease', 'important');
+
+                                                logoutBtn.addEventListener('mouseover', () => {
+                                                    logoutBtn.style.setProperty('background-color', '#ffebee', 'important');
+                                                });
+                                                logoutBtn.addEventListener('mouseout', () => {
+                                                    logoutBtn.style.setProperty('background-color', 'transparent', 'important');
+                                                });
+
+                                                logoutBtn.addEventListener('click', function(e) {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    if (window.AndroidProfileInterface) {
+                                                        window.AndroidProfileInterface.performNativeLogout();
+                                                    }
+                                                });
+
+                                                containerItem.appendChild(logoutBtn);
+                                                shell.appendChild(containerItem);
+                                            }
+                                        };
+
+                                        appendLogout();
+                                        setTimeout(appendLogout, 500);
+                                        setTimeout(appendLogout, 1500);
+                                        setTimeout(appendLogout, 3000);
                                     } catch(e) {
                                         console.error('Profile view enhancement failed', e);
                                     }
@@ -539,15 +348,12 @@ fun ProfileScreen(
                             val pass = (savedPassword ?: "").trim()
 
                             if (cleanMobile.isNotEmpty()) {
+                                // Inject session variables for auto login
+                                val sessionJson = "{\"studentName\":\"${cleanName}\",\"studentMobile\":\"${cleanMobile}\"}"
                                 val storageScript = """
                                     try {
-                                        const sessionStr = JSON.stringify({studentName: "$cleanName", studentMobile: "$cleanMobile"});
-                                        const existing = localStorage.getItem('mockExamSession');
-                                        if (!existing || existing !== sessionStr) {
-                                            localStorage.setItem('mockExamSession', sessionStr);
-                                            sessionStorage.setItem('mockExamSession', sessionStr);
-                                            location.reload();
-                                        }
+                                        localStorage.setItem('mockExamSession', '$sessionJson');
+                                        sessionStorage.setItem('mockExamSession', '$sessionJson');
                                     } catch(e) {
                                         console.error('Session storage sync failed', e);
                                     }
@@ -614,42 +420,14 @@ fun ProfileScreen(
                 .alpha(webViewAlpha)
         )
 
-        }
-
-        // Native M3 Logout button at the very bottom
-        Button(
-            onClick = {
-                (context as? android.app.Activity)?.runOnUiThread {
-                    onLogout()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .height(48.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = Color.White
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(
-                text = if (appLanguage == "hi") "लॉगआउट करें (Logout)" else "Logout",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-            )
-        }
-
         if (isLoading) {
-            ProfileShimmerLoadingPlaceholder()
+            ShimmerLoadingPlaceholder()
         }
     }
 }
 
 @Composable
-fun ProfileShimmerLoadingPlaceholder() {
+fun ShimmerLoadingPlaceholder() {
     val infiniteTransition = rememberInfiniteTransition(label = "Shimmer")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.25f,
@@ -731,3 +509,113 @@ fun ProfileShimmerLoadingPlaceholder() {
         }
     }
 }
+
+
+private const val GLOBAL_HEADER_HIDE_SCRIPT = """
+(function() {
+    try {
+        const isExamPage = window.location.href.includes('exam.html') || 
+                           window.location.href.includes('attempt') || 
+                           window.location.href.includes('solve') || 
+                           window.location.href.includes('start');
+        
+        if (isExamPage) {
+            document.documentElement.classList.add('exam-page');
+            if (document.body) document.body.classList.add('exam-page');
+        }
+
+        // Add android-app class just in case loader.js hasn't executed yet
+        document.documentElement.classList.add('android-app');
+        if (document.body) document.body.classList.add('android-app');
+
+        let style = document.getElementById('android-ui-override-style');
+        if (!style) {
+            style = document.createElement('style');
+            style.id = 'android-ui-override-style';
+            (document.head || document.documentElement).appendChild(style);
+        }
+        
+        style.innerHTML = `
+            header, .site-header, .app-header, .main-header, #header, #site-header,
+            nav, .navbar, .main-nav, #navbar, .navigation,
+            .top-actions, .header-actions, #logoutBtn, .logout-btn, .account-btn, .profile-btn,
+            .mobile-menu-btn, .menu-btn, .brand, .logo, [class*="logo-"], [id*="logo-"],
+            .brand-logo, .brand-name {
+                display: none !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+            }
+            .mock-header, .category-header, .page-header, .welcome-section, .welcome-card, .welcome-banner,
+            .intro-section, .intro-banner, .page-title, .section-title-main, .hero-banner,
+            .banner-section, .banner-container, .promo-banner, .page-header-container,
+            .site-title, .site-description, .site-logo {
+                display: none !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+            }
+            html.android-app:not(.exam-page) .top-bar,
+            html.android-app:not(.exam-page) .top-actions {
+                display: none !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+            }
+            .page-shell, .container, main, #main, .main-content, #content, .content-wrapper {
+                padding-top: 8px !important;
+                margin-top: 0 !important;
+            }
+        `;
+
+        function runTextHide() {
+            try {
+                const walk = document.createTreeWalker(
+                    document.body || document.documentElement,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+                const nodesToHide = [];
+                let node;
+                while ((node = walk.nextNode())) {
+                    const text = node.nodeValue.trim();
+                    if (
+                        text.includes("Marudhara Mock Categories") ||
+                        text.includes("Find available mock tests") ||
+                        (text.includes("Marudhara Exam") && node.parentElement && (node.parentElement.tagName === "H1" || node.parentElement.tagName === "H2") && !isExamPage)
+                    ) {
+                        const parent = node.parentElement;
+                        if (parent && parent.tagName !== "SCRIPT" && parent.tagName !== "STYLE") {
+                            nodesToHide.push(parent);
+                        }
+                    }
+                }
+                nodesToHide.forEach((el) => {
+                    el.style.setProperty("display", "none", "important");
+                    el.style.setProperty("height", "0", "important");
+                    el.style.setProperty("margin", "0", "important");
+                    el.style.setProperty("padding", "0", "important");
+                });
+            } catch (e) {}
+        }
+        runTextHide();
+        setTimeout(runTextHide, 100);
+        setTimeout(runTextHide, 300);
+        setTimeout(runTextHide, 600);
+        setTimeout(runTextHide, 1200);
+        setTimeout(runTextHide, 2500);
+    } catch(e) {
+        console.error('Global web header hide failed', e);
+    }
+})()
+""";

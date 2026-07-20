@@ -11,8 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import com.example.R
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -28,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.store.SessionManager
+import android.widget.Toast
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
@@ -57,17 +56,51 @@ fun MainScaffold(
     val coroutineScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     
+    val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
+    val isEn = appLanguage == "en"
+
     var selectedBottomTab by remember { mutableIntStateOf(0) }
-    var studentName by remember { mutableStateOf("प्रिय विद्यार्थी") }
+    var studentName by remember { mutableStateOf("") }
     var mobileNumber by remember { mutableStateOf("") }
     
     var showExitDialog by remember { mutableStateOf(false) }
+    var isLoggingOut by remember { mutableStateOf(false) }
+
+    val performLogoutAction: () -> Unit = {
+        coroutineScope.launch {
+            isLoggingOut = true
+            try {
+                // 1. Sign out Firebase Auth
+                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                
+                // 2. Clear Web Storage, Cookies and Cache
+                android.webkit.WebStorage.getInstance().deleteAllData()
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                android.webkit.CookieManager.getInstance().flush()
+                
+                // 3. Trigger parent onLogout (clears SessionManager and navigates to Login)
+                onLogout()
+                
+                // 4. Show success toast
+                Toast.makeText(context, if (isEn) "Logged out successfully." else "सफलतापूर्वक लॉगआउट हो गया।", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, if (isEn) "Unable to logout. Please try again." else "लॉगआउट करने में असमर्थ। कृपया पुनः प्रयास करें।", Toast.LENGTH_LONG).show()
+            } finally {
+                isLoggingOut = false
+            }
+        }
+    }
+
+    val defaultStudentName = if (isEn) "Student" else "प्रिय विद्यार्थी"
 
     // Read details from SessionManager
     LaunchedEffect(key1 = true) {
-        studentName = sessionManager.studentNameFlow.firstOrNull() ?: "प्रिय विद्यार्थी"
+        studentName = sessionManager.studentNameFlow.firstOrNull() ?: ""
         mobileNumber = sessionManager.mobileNumberFlow.firstOrNull() ?: ""
     }
+
+    val displayName = if (studentName.isNotEmpty()) studentName else defaultStudentName
 
     // Dynamic Back Handler
     BackHandler(enabled = true) {
@@ -88,13 +121,13 @@ fun MainScaffold(
             onDismissRequest = { showExitDialog = false },
             title = {
                 Text(
-                    text = stringResource(R.string.exit_title),
+                    text = if (isEn) "Exit App?" else "बाहर जाएं?",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
             text = {
                 Text(
-                    text = stringResource(R.string.exit_message),
+                    text = if (isEn) "Are you sure you want to exit Marudhara Exam?" else "क्या आप वास्तव में Marudhara Exam एप्लीकेशन बंद करना चाहते हैं?",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -109,229 +142,219 @@ fun MainScaffold(
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(stringResource(R.string.exit_yes), fontWeight = FontWeight.Bold)
+                    Text(if (isEn) "Exit" else "हाँ (Exit)", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text(stringResource(R.string.exit_no), fontWeight = FontWeight.Medium)
+                    Text(if (isEn) "Cancel" else "निरस्त करें", fontWeight = FontWeight.Medium)
                 }
             },
             shape = RoundedCornerShape(16.dp)
         )
     }
 
-    val appLanguage by sessionManager.appLanguageFlow.collectAsState(initial = "en")
-
-    val drawerItems = remember(appLanguage) {
+    val drawerItems = remember {
         listOf(
-            DrawerMenuItem(context.getString(R.string.nav_home), "Home Dashboard", Icons.Default.Home, DrawerAction.NavigateHome),
-            DrawerMenuItem(context.getString(R.string.nav_omr), "Verify OMR sheet", Icons.Default.FactCheck, DrawerAction.OpenWeb(context.getString(R.string.nav_omr), "https://marudharaexam.in/omr.html")),
-            DrawerMenuItem(context.getString(R.string.nav_mock), "Practice mock tests", Icons.Default.Assignment, DrawerAction.OpenWeb(context.getString(R.string.nav_mock), "https://marudharaexam.in/mock-tests/index.html")),
-            DrawerMenuItem(context.getString(R.string.nav_results), "OMR Check Result", Icons.Default.Assessment, DrawerAction.OpenWeb(context.getString(R.string.nav_results), "https://marudharaexam.in/results.html")),
-            DrawerMenuItem(context.getString(R.string.nav_vacancy), "Job alerts and news", Icons.Default.Campaign, DrawerAction.OpenWeb(context.getString(R.string.nav_vacancy), "https://marudharaexam.in/vacancy.html")),
-            DrawerMenuItem(context.getString(R.string.nav_student), "Candidate portal", Icons.Default.School, DrawerAction.OpenWeb(context.getString(R.string.nav_student), "https://marudharaexam.in/student-corner.html")),
-            DrawerMenuItem(context.getString(R.string.nav_vacancy_result), "Selected candidates", Icons.Default.TaskAlt, DrawerAction.OpenWeb(context.getString(R.string.nav_vacancy_result), "https://marudharaexam.in/vacancy-result.html")),
-            DrawerMenuItem(context.getString(R.string.nav_share), "Share Application", Icons.Default.Share, DrawerAction.ShareApp),
-            DrawerMenuItem(context.getString(R.string.nav_rate), "Rate on Play Store", Icons.Default.Star, DrawerAction.RateApp)
+            DrawerMenuItem("मुख्य पृष्ठ", "Home Dashboard", Icons.Default.Home, DrawerAction.NavigateHome),
+            DrawerMenuItem("OMR चेक", "Verify OMR sheet", Icons.Default.FactCheck, DrawerAction.OpenWeb("OMR चेक", "https://marudharaexam.in/omr.html")),
+            DrawerMenuItem("मॉक टेस्ट", "Practice mock tests", Icons.Default.Assignment, DrawerAction.OpenWeb("मॉक टेस्ट", "https://marudharaexam.in/mock-tests/index.html")),
+            DrawerMenuItem("OMR चेक परिणाम", "OMR Check Result", Icons.Default.Assessment, DrawerAction.OpenWeb("OMR चेक परिणाम", "https://marudharaexam.in/results.html")),
+            DrawerMenuItem("नवीनतम भर्तियां", "Job alerts and news", Icons.Default.Campaign, DrawerAction.OpenWeb("नवीनतम भर्तियां", "https://marudharaexam.in/vacancy.html")),
+            DrawerMenuItem("विद्यार्थी कॉर्नर", "Candidate portal", Icons.Default.School, DrawerAction.OpenWeb("विद्यार्थी कॉर्नर", "https://marudharaexam.in/student-corner.html")),
+            DrawerMenuItem("भर्ती परिणाम", "Selected candidates", Icons.Default.TaskAlt, DrawerAction.OpenWeb("भर्ती परिणाम", "https://marudharaexam.in/vacancy-result.html")),
+            DrawerMenuItem("ऐप शेयर करें", "Share Application", Icons.Default.Share, DrawerAction.ShareApp),
+            DrawerMenuItem("रेट करें", "Rate on Play Store", Icons.Default.Star, DrawerAction.RateApp)
         )
     }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = true,
+        gesturesEnabled = false,
         drawerContent = {
             ModalDrawerSheet(
-                drawerContainerColor = MaterialTheme.colorScheme.surface,
+                drawerContainerColor = Color(0xFFFFFDF9), // Warm White Drawer background
                 modifier = Modifier.width(300.dp)
             ) {
-                // Drawer Header Frame
+                // Redesigned Drawer Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primary)
-                        .padding(horizontal = 20.dp, vertical = 24.dp)
+                        .background(Color(0xFFFFFDF9)) // Warm White
+                        .padding(horizontal = 24.dp, vertical = 28.dp)
                 ) {
                     Column {
-                        // Small Circular Symbol
-                        Box(
+                        // Beautiful Official Brand Logo PNG
+                        Image(
+                            painter = painterResource(id = com.example.R.drawable.marudhara_logo),
+                            contentDescription = "Marudhara Exam Logo",
                             modifier = Modifier
-                                .size(50.dp)
-                                .background(Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(10.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.School,
-                                contentDescription = "लोगो",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = studentName,
+                            text = displayName,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.primary, // Dark Blue text
                                 fontSize = 18.sp
                             )
                         )
                         Text(
-                            text = if (mobileNumber.isNotEmpty()) "+91 $mobileNumber" else "मारुधरा एग्जाम कैंडिडेट",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f),
+                            text = if (mobileNumber.isNotEmpty()) "+91 $mobileNumber" else (if (isEn) "Marudhara Exam Candidate" else "मारुधरा एग्जाम कैंडिडेट"),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
 
+                HorizontalDivider(color = Color(0xFFE5E0D8), thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Scrollable Menu Items
+                // Scrollable Menu Items + Language switcher at the bottom
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface)
+                        .background(Color(0xFFFFFDF9))
                         .padding(horizontal = 12.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    drawerItems.forEach { menuItem ->
-                        NavigationDrawerItem(
-                            label = {
-                                Column {
-                                    Text(
-                                        text = menuItem.titleHindi,
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = menuItem.titleEnglish,
-                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                                    )
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = menuItem.icon,
-                                    contentDescription = menuItem.titleHindi,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            selected = false,
-                            onClick = {
-                                coroutineScope.launch { drawerState.close() }
-                                when (val act = menuItem.action) {
-                                    is DrawerAction.NavigateHome -> {
-                                        selectedBottomTab = 0
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        drawerItems.forEach { menuItem ->
+                            NavigationDrawerItem(
+                                label = {
+                                    Column {
+                                        Text(
+                                            text = if (isEn) menuItem.titleEnglish else menuItem.titleHindi,
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = if (isEn) menuItem.titleHindi else menuItem.titleEnglish,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
                                     }
-                                    is DrawerAction.OpenWeb -> {
-                                        onNavigateToWeb(act.title, act.url)
-                                    }
-                                    is DrawerAction.ShareApp -> {
-                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(
-                                                Intent.EXTRA_TEXT,
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = menuItem.icon,
+                                        contentDescription = menuItem.titleHindi,
+                                        tint = MaterialTheme.colorScheme.secondary
+                                    )
+                                },
+                                selected = false,
+                                onClick = {
+                                    coroutineScope.launch { drawerState.close() }
+                                    when (val act = menuItem.action) {
+                                        is DrawerAction.NavigateHome -> {
+                                            selectedBottomTab = 0
+                                        }
+                                        is DrawerAction.OpenWeb -> {
+                                            onNavigateToWeb(act.title, act.url)
+                                        }
+                                        is DrawerAction.ShareApp -> {
+                                            val shareText = if (isEn) {
+                                                "Marudhara Exam - Best prep app for Rajasthan Competitive Exams. Download now: https://marudharaexam.in"
+                                            } else {
                                                 "Marudhara Exam - राजस्थान प्रतियोगी परीक्षाओं की सर्वश्रेष्ठ तैयारी ऐप। अभी डाउनलोड करें: https://marudharaexam.in"
-                                            )
+                                            }
+                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                            }
+                                            context.startActivity(Intent.createChooser(shareIntent, if (isEn) "Share App" else "शेयर करें"))
                                         }
-                                        context.startActivity(Intent.createChooser(shareIntent, "शेयर करें"))
-                                    }
-                                    is DrawerAction.RateApp -> {
-                                        try {
-                                            val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
-                                            context.startActivity(rateIntent)
-                                        } catch (e: Exception) {
-                                            val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"))
-                                            context.startActivity(rateIntent)
+                                        is DrawerAction.RateApp -> {
+                                            try {
+                                                val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
+                                                context.startActivity(rateIntent)
+                                            } catch (e: Exception) {
+                                                val rateIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"))
+                                                context.startActivity(rateIntent)
+                                            }
                                         }
                                     }
-                                }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent
+                                },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    unselectedContainerColor = Color.Transparent
+                                )
                             )
-                        )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Language Selection Section in Drawer
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                        ),
-                        shape = RoundedCornerShape(12.dp),
+
+                    HorizontalDivider(color = Color(0xFFE5E0D8), thickness = 0.5.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Dynamic Language Selector inside Drawer Bottom
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp, horizontal = 8.dp)
+                            .padding(bottom = 16.dp, start = 12.dp, end = 12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp)
+                        Text(
+                            text = if (isEn) "Choose Language / भाषा चुनें" else "भाषा चुनें (Choose Language)",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                text = stringResource(R.string.language_select),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            // English Button
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        sessionManager.saveAppLanguage("en")
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isEn) MaterialTheme.colorScheme.primary else Color(0xFFEFECE6),
+                                    contentColor = if (isEn) Color.White else MaterialTheme.colorScheme.primary
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp),
+                                contentPadding = PaddingValues(0.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clickable {
-                                            coroutineScope.launch {
-                                                sessionManager.saveLanguage("en")
-                                            }
-                                        }
-                                        .padding(4.dp)
-                                ) {
-                                    RadioButton(
-                                        selected = appLanguage == "en",
-                                        onClick = {
-                                            coroutineScope.launch {
-                                                sessionManager.saveLanguage("en")
-                                            }
-                                        }
-                                    )
-                                    Text(
-                                        text = "English",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (appLanguage == "en") FontWeight.Bold else FontWeight.Normal),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clickable {
-                                            coroutineScope.launch {
-                                                sessionManager.saveLanguage("hi")
-                                            }
-                                        }
-                                        .padding(4.dp)
-                                ) {
-                                    RadioButton(
-                                        selected = appLanguage == "hi",
-                                        onClick = {
-                                            coroutineScope.launch {
-                                                sessionManager.saveLanguage("hi")
-                                            }
-                                        }
-                                    )
-                                    Text(
-                                        text = "हिन्दी",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (appLanguage == "hi") FontWeight.Bold else FontWeight.Normal),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                                Text("English", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // Hindi Button
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        sessionManager.saveAppLanguage("hi")
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (!isEn) MaterialTheme.colorScheme.primary else Color(0xFFEFECE6),
+                                    contentColor = if (!isEn) Color.White else MaterialTheme.colorScheme.primary
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("हिन्दी", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         },
@@ -340,12 +363,12 @@ fun MainScaffold(
         Scaffold(
             topBar = {
                 Surface(
-                    color = MaterialTheme.colorScheme.primary,
-                    tonalElevation = 4.dp,
-                    shadowElevation = 4.dp,
+                    color = Color(0xFFFFFDF9), // Warm White Bar
+                    tonalElevation = 2.dp,
+                    shadowElevation = 2.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(52.dp)
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -355,24 +378,21 @@ fun MainScaffold(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .padding(start = 48.dp)
+                                .padding(start = 52.dp)
                         ) {
                             Image(
-                                painter = painterResource(id = com.example.R.drawable.web_logo),
+                                painter = painterResource(id = com.example.R.drawable.marudhara_logo),
                                 contentDescription = "Logo",
                                 modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color.White)
-                                    .padding(1.dp)
+                                    .size(30.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Marudhara Exam",
+                                text = if (isEn) "Marudhara Exam" else "मरुधरा एग्जाम",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
+                                    fontSize = 17.sp,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             )
                         }
@@ -385,94 +405,135 @@ fun MainScaffold(
                             },
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
-                                .size(44.dp)
+                                .size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Menu,
-                                contentDescription = "मेन्यू खोलें",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                contentDescription = if (isEn) "Open Menu" else "मेन्यू खोलें",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
-                        IconButton(
-                            onClick = {
-                                onNavigateToWeb("नवीनतम भर्तियां", "https://marudharaexam.in/vacancy.html")
-                            },
+                        Row(
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .size(44.dp)
+                                .padding(end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = "नोटिफिकेशन",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            IconButton(
+                                onClick = {
+                                    onNavigateToWeb(if (isEn) "Vacancy Updates" else "नवीनतम भर्तियां", "https://marudharaexam.in/vacancy.html")
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = if (isEn) "Notifications" else "नोटिफिकेशन",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            
+                            if (selectedBottomTab == 4) {
+                                var showProfileMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(
+                                        onClick = { showProfileMenu = !showProfileMenu },
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = if (isEn) "Profile Options" else "प्रोफ़ाइल विकल्प",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showProfileMenu,
+                                        onDismissRequest = { showProfileMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (isEn) "🚪 Logout" else "🚪 लॉगआउट (Logout)") },
+                                            onClick = {
+                                                showProfileMenu = false
+                                                performLogoutAction()
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             },
             bottomBar = {
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp,
-                    shadowElevation = 6.dp,
+                    color = Color(0xFFFFFDF9), // Warm White bottom navigation
+                    tonalElevation = 2.dp,
+                    shadowElevation = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(38.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
                     ) {
-                        // Home Item
-                        val homeSelected = selectedBottomTab == 0
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
+                        HorizontalDivider(color = Color(0xFFE5E0D8), thickness = 0.5.dp)
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clickable { selectedBottomTab = 0 }
+                                .fillMaxWidth()
+                                .height(46.dp), // Extremely sleek but comfortable touch target height
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Home,
-                                contentDescription = "Home",
-                                tint = if (homeSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.nav_home),
-                                fontSize = 9.sp,
-                                fontWeight = if (homeSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (homeSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f)
-                            )
-                        }
+                            // Home Item
+                            val homeSelected = selectedBottomTab == 0
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { selectedBottomTab = 0 }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Home,
+                                    contentDescription = "Home",
+                                    tint = if (homeSelected) MaterialTheme.colorScheme.primary else Color(0xFF7F7B75),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.height(1.dp))
+                                Text(
+                                    text = if (isEn) "Home" else "मुख्य पृष्ठ",
+                                    fontSize = 10.sp,
+                                    fontWeight = if (homeSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                    color = if (homeSelected) MaterialTheme.colorScheme.primary else Color(0xFF7F7B75)
+                                )
+                            }
 
-                        // Profile Item
-                        val profileSelected = selectedBottomTab == 4
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clickable { selectedBottomTab = 4 }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = "Profile",
-                                tint = if (profileSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.nav_profile),
-                                fontSize = 9.sp,
-                                fontWeight = if (profileSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (profileSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.7f)
-                            )
+                            // Profile Item
+                            val profileSelected = selectedBottomTab == 4
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable { selectedBottomTab = 4 }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = "Profile",
+                                    tint = if (profileSelected) MaterialTheme.colorScheme.primary else Color(0xFF7F7B75),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.height(1.dp))
+                                Text(
+                                    text = if (isEn) "Profile" else "प्रोफ़ाइल",
+                                    fontSize = 10.sp,
+                                    fontWeight = if (profileSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                    color = if (profileSelected) MaterialTheme.colorScheme.primary else Color(0xFF7F7B75)
+                                )
+                            }
                         }
                     }
                 }
@@ -487,20 +548,57 @@ fun MainScaffold(
                 // Switch between bottoms tabs
                 when (selectedBottomTab) {
                     0 -> HomeScreen(
-                        studentName = studentName,
+                        studentName = displayName,
+                        appLanguage = appLanguage,
                         onNavigateToWeb = onNavigateToWeb,
                         onSelectBottomTab = { selectedBottomTab = it }
                     )
                     4 -> ProfileScreen(
                         sessionManager = sessionManager,
-                        onLogout = onLogout,
+                        onLogout = performLogoutAction,
                         onNavigateToWeb = onNavigateToWeb
                     )
                     else -> HomeScreen(
-                        studentName = studentName,
+                        studentName = displayName,
+                        appLanguage = appLanguage,
                         onNavigateToWeb = onNavigateToWeb,
                         onSelectBottomTab = { selectedBottomTab = it }
                     )
+                }
+
+                if (isLoggingOut) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .clickable(enabled = false) {},
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = if (isEn) "Logging out..." else "लॉगआउट हो रहा है...",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 16.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
